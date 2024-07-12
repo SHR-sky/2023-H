@@ -5,7 +5,9 @@
 
 思路来自：
 
-[2023全国大学生电子设计竞赛H题全解 [原创www.cnblogs.com/helesheng\] - helesheng - 博客园](https://www.cnblogs.com/helesheng/p/17888312.html)
+[2023全国大学生电子设计竞赛H题全解 
+
+[原创www.cnblogs.com/helesheng\] - helesheng - 博客园](https://www.cnblogs.com/helesheng/p/17888312.html)
 
 
 
@@ -13,4 +15,14 @@
 
 - TIM的位数
 - STM32 栈的大小，爆栈之后会使得DA波形出现问题
+
+
+
+具体实现思路
+
+分为三步
+
+1. 信号的采集与分析判断
+2. 信号的重建
+3. 信号的相位差计算与实时相位校正
 

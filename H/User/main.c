@@ -1,9 +1,9 @@
 #include "sys.h"
 
-uint8_t flag = 0;
-uint8_t mode_flag = 0;
-double diff_phi_per5 = 0;
-int change_phi = 53;
+uint8_t flag = 0;         // 标志是否重新测量
+uint8_t mode_flag = 0;    // 标志是信号分离模式还是移相模式
+double diff_phi_per5 = 0; // 将移相对应到每一个频率上
+int change_phi = 53;      // 移相程度 1 代表 1.7度
 
 double pos_angle_0; // 转换为延迟0-2pi，全部为整数的角度，重建信号延迟的相位
 double pos_angle_1; // 转换为延迟0-2pi，全部为整数的角度，重建信号延迟的相位
@@ -13,16 +13,16 @@ double angle;
 int delayTime0;
 int delayTime1;
 
-unsigned char fre[2];
-unsigned char wave_type[2];
+unsigned char fre[2];       // 输入信号的两个频率
+unsigned char wave_type[2]; // 输入信号的两种波形
 
-short ADCConvertedValue[1000];
+short ADCConvertedValue[1000]; // ADC采集到的1000个点
 
-double modulus(double I, double Q);
+double modulus(double I, double Q); // 计算模长
 double corr1000_200(short *data, short *mask);
-void get_pos_angle(void);
+void get_pos_angle(void); // 计算移相的角度
 void cal_2frqs(unsigned char *frq);
-void fft_cal_2types(unsigned char *frq, unsigned char *wave_type);
+void fft_cal_2types(unsigned char *frq, unsigned char *wave_type); // FFT判断波形
 
 // 标准频率sin与cos表
 
@@ -110,8 +110,8 @@ again:
     ADC_Config();                // ADC 2000K采样频率，采集6000个数据，需要花费3ms
     ADC_DMA_Trig(ADC1_DMA_Size); // 开始AD采集，设置采样点数
 
-    cal_2frqs(fre);
-    fft_cal_2types(fre, wave_type);
+    cal_2frqs(fre);                 // 计算输入信号的频率
+    fft_cal_2types(fre, wave_type); // 判断是三角波还是正弦波
 
     diff_phi_per5 = 1166.666666 / (fre[1] * 5 + 10);
 
@@ -168,7 +168,7 @@ again:
             TIM4->CNT = 65535 - (delayTime0 - TIM4->CNT);
             TIM6->CNT = 65535 - (delayTime1 - TIM6->CNT);
         }
-        else
+        else // 说明为A'与B'的相位调节，由于都是DA产生，故不存在漂移，不需要校准相位差
         {
             continue;
         }
