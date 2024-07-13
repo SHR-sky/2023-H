@@ -2424,10 +2424,10 @@ xbf38,0x00c9
   631 000011E0                 END
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
 interwork --depend=.\objects\cr4_fft_1024_stm32.d -o.\objects\cr4_fft_1024_stm3
-2.o -IE:\SoftLib\Keil_Arm_pack\Keil\STM32F4xx_DFP\2.17.1\Drivers\CMSIS\Device\S
-T\STM32F4xx\Include --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERS
-ION SETA 538" --predefine="STM32F407xx SETA 1" --list=.\listings\cr4_fft_1024_s
-tm32.lst ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+2.o -IF:\keil\Pack\Keil\STM32F4xx_DFP\2.17.1\Drivers\CMSIS\Device\ST\STM32F4xx\
+Include --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERSION SETA 538
+" --predefine="STM32F407xx SETA 1" --list=.\listings\cr4_fft_1024_stm32.lst ..\
+..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
 
 
 
@@ -2503,13 +2503,13 @@ Symbol: NPT
    Definitions
       At line 46 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
    Uses
-      At line 136 in macro ù©	OPT
+      At line 136 in macro p|wOPT
       at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
-      At line 139 in macro ù©	OPT
+      At line 139 in macro p|wOPT
       at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
-      At line 142 in macro ù©	OPT
+      At line 142 in macro p|wOPT
       at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
-      At line 145 in macro ù©	OPT
+      At line 145 in macro p|wOPT
       at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
 
 1 symbol

@@ -106,8 +106,6 @@ extern u8 do_ad_flag2;
 int main()
 {
 again:
-    int cnt0 = 0;
-    int cnt1 = 0;
     wave_type[0] = 0;
     wave_type[1] = 0;
     Serial_Init();

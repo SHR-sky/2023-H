@@ -3,7 +3,7 @@
 .\objects\adcdma.o: ..\..\Hardware\sys.h
 .\objects\adcdma.o: ..\..\Libraries\CMSIS\Device\ST\STM32F4xx\Include\stm32f4xx.h
 .\objects\adcdma.o: ..\..\Libraries\CMSIS\Include\core_cm4.h
-.\objects\adcdma.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\adcdma.o: F:\keil\core\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\adcdma.o: ..\..\Libraries\CMSIS\Include\core_cmInstr.h
 .\objects\adcdma.o: ..\..\Libraries\CMSIS\Include\core_cmFunc.h
 .\objects\adcdma.o: ..\..\Libraries\CMSIS\Include\core_cmSimd.h
@@ -39,13 +39,11 @@
 .\objects\adcdma.o: ..\..\Hardware\TIM.h
 .\objects\adcdma.o: ..\..\Hardware\sys.h
 .\objects\adcdma.o: ..\..\Hardware\Serial.h
-.\objects\adcdma.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
-.\objects\adcdma.o: ..\..\Hardware\Delay.h
-.\objects\adcdma.o: ..\..\Hardware\mySPI.h
+.\objects\adcdma.o: F:\keil\core\ARM\ARMCC\Bin\..\include\stdio.h
 .\objects\adcdma.o: ..\..\Hardware\ADCDMA.h
 .\objects\adcdma.o: ..\..\Hardware\DAC.h
 .\objects\adcdma.o: ..\..\User\fft\inc\stm32_dsp.h
 .\objects\adcdma.o: ..\..\Libraries\CMSIS\Include\arm_math.h
 .\objects\adcdma.o: ..\..\Libraries\CMSIS\Include\core_cm4.h
-.\objects\adcdma.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
-.\objects\adcdma.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+.\objects\adcdma.o: F:\keil\core\ARM\ARMCC\Bin\..\include\string.h
+.\objects\adcdma.o: F:\keil\core\ARM\ARMCC\Bin\..\include\math.h

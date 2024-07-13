@@ -43,8 +43,6 @@
 ".\objects\system_stm32f4xx.o"
 ".\objects\serial.o"
 ".\objects\tim.o"
-".\objects\delay.o"
-".\objects\myspi.o"
 ".\objects\dac.o"
 ".\objects\adcdma.o"
 ".\objects\main.o"

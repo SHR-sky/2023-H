@@ -3,7 +3,7 @@
 .\objects\tim.o: ..\..\Hardware\sys.h
 .\objects\tim.o: ..\..\Libraries\CMSIS\Device\ST\STM32F4xx\Include\stm32f4xx.h
 .\objects\tim.o: ..\..\Libraries\CMSIS\Include\core_cm4.h
-.\objects\tim.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\tim.o: F:\keil\core\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\tim.o: ..\..\Libraries\CMSIS\Include\core_cmInstr.h
 .\objects\tim.o: ..\..\Libraries\CMSIS\Include\core_cmFunc.h
 .\objects\tim.o: ..\..\Libraries\CMSIS\Include\core_cmSimd.h
@@ -38,14 +38,12 @@
 .\objects\tim.o: ..\..\Libraries\STM32F4xx_StdPeriph_Driver\inc\stm32f4xx_fsmc.h
 .\objects\tim.o: ..\..\Hardware\TIM.h
 .\objects\tim.o: ..\..\Hardware\Serial.h
-.\objects\tim.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\tim.o: F:\keil\core\ARM\ARMCC\Bin\..\include\stdio.h
 .\objects\tim.o: ..\..\Hardware\sys.h
-.\objects\tim.o: ..\..\Hardware\Delay.h
-.\objects\tim.o: ..\..\Hardware\mySPI.h
 .\objects\tim.o: ..\..\Hardware\ADCDMA.h
 .\objects\tim.o: ..\..\Hardware\DAC.h
 .\objects\tim.o: ..\..\User\fft\inc\stm32_dsp.h
 .\objects\tim.o: ..\..\Libraries\CMSIS\Include\arm_math.h
 .\objects\tim.o: ..\..\Libraries\CMSIS\Include\core_cm4.h
-.\objects\tim.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
-.\objects\tim.o: E:\SoftLib\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+.\objects\tim.o: F:\keil\core\ARM\ARMCC\Bin\..\include\string.h
+.\objects\tim.o: F:\keil\core\ARM\ARMCC\Bin\..\include\math.h
