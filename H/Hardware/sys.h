@@ -6,6 +6,8 @@
 #include "stm32f4xx.h" 
 #include "TIM.h"
 #include "Serial.h"
+#include "Delay.h"
+#include "mySPI.h"
 #include "ADCDMA.h"
 #include "DAC.h"
 #include "stm32_dsp.h"

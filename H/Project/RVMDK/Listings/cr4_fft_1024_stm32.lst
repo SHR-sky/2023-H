@@ -1,0 +1,2531 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;******************** (C) COPYRIGHT 2009  STMicroelectro
+                       nics ********************
+    2 00000000         ;* File Name          : cr4_fft_1024_stm32.s
+    3 00000000         ;* Author             : MCD Application Team
+    4 00000000         ;* Version            : V2.0.0
+    5 00000000         ;* Date               : 04/27/2009
+    6 00000000         ;* Description        : Optimized 1024-point radix-4 com
+                       plex FFT for Cortex-M3
+    7 00000000         ;*******************************************************
+                       *************************
+    8 00000000         ;* THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS 
+                       AT PROVIDING CUSTOMERS
+    9 00000000         ;* WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN O
+                       RDER FOR THEM TO SAVE TIME.
+   10 00000000         ;* AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIA
+                       BLE FOR ANY DIRECT,
+   11 00000000         ;* INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY
+                        CLAIMS ARISING FROM THE
+   12 00000000         ;* CONTENT OF SUCH SOFTWARE AND/OR THE USE MADE BY CUSTO
+                       MERS OF THE CODING
+   13 00000000         ;* INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR
+                        PRODUCTS.
+   14 00000000         ;*******************************************************
+                       ************************/
+   15 00000000         
+   16 00000000                 THUMB
+   17 00000000                 REQUIRE8
+   18 00000000                 PRESERVE8
+   19 00000000         
+   20 00000000                 AREA             |.text|, CODE, READONLY, ALIGN=
+2
+   21 00000000         
+   22 00000000                 EXPORT           cr4_fft_1024_stm32
+   23 00000000                 EXTERN           TableFFT
+   24 00000000         
+   25 00000000         
+   26 00000000        0 
+                       pssK    RN               R0
+   27 00000000        0 
+                       pssOUT  RN               R0
+   28 00000000        1 
+                       pssX    RN               R1
+   29 00000000        1 
+                       pssIN   RN               R1
+   30 00000000        2 
+                       butternbr
+                               RN               R2
+   31 00000000        2 
+                       Nbin    RN               R2
+   32 00000000        3 
+                       index   RN               R3
+   33 00000000        4 
+                       Ar      RN               R4
+   34 00000000        5 
+                       Ai      RN               R5
+   35 00000000        6 
+                       Br      RN               R6
+   36 00000000        7 
+                       Bi      RN               R7
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+   37 00000000        8 
+                       Cr      RN               R8
+   38 00000000        9 
+                       Ci      RN               R9
+   39 00000000        A 
+                       Dr      RN               R10
+   40 00000000        B 
+                       Di      RN               R11
+   41 00000000        C 
+                       cntrbitrev
+                               RN               R12
+   42 00000000        C 
+                       tmp     RN               R12
+   43 00000000        E 
+                       pssIN2  RN               R14
+   44 00000000        E 
+                       tmp2    RN               R14
+   45 00000000         
+   46 00000000 00000400 
+                       NPT     EQU              1024
+   47 00000000         
+   48 00000000         ;----------------------------- MACROS ------------------
+                       ----------------------
+   49 00000000         
+   50 00000000                 MACRO
+   51 00000000                 DEC              $reg
+   52 00000000                 SUB              $reg,$reg,#1
+   53 00000000                 MEND
+   54 00000000         
+   55 00000000                 MACRO
+   56 00000000                 INC              $reg
+   57 00000000                 ADD              $reg,$reg,#1
+   58 00000000                 MEND
+   59 00000000         
+   60 00000000         
+   61 00000000                 MACRO
+   62 00000000                 QUAD             $reg
+   63 00000000                 MOV              $reg,$reg,LSL#2
+   64 00000000                 MEND
+   65 00000000         
+   66 00000000         ;sXi = *(PssX+1); sXr = *PssX; PssX += offset; PssX= R1
+   67 00000000         
+   68 00000000                 MACRO
+   69 00000000                 LDR2Q            $sXr,$sXi, $PssX, $offset
+   70 00000000                 LDRSH            $sXi, [$PssX, #2]
+   71 00000000                 LDRSH            $sXr, [$PssX]
+   72 00000000                 ADD              $PssX, $PssX, $offset
+   73 00000000                 MEND
+   74 00000000         
+   75 00000000         ;!! Same macro, to be used when passing negative offset 
+                       value !!
+   76 00000000                 MACRO
+   77 00000000                 LDR2Qm           $sXr, $sXi, $PssX, $offset
+   78 00000000                 LDRSH            $sXi, [$PssX, #2]
+   79 00000000                 LDRSH            $sXr, [$PssX]
+   80 00000000                 SUB              $PssX, $PssX, $offset
+   81 00000000                 MEND
+   82 00000000         
+   83 00000000         ;(PssX+1)= sXi;  *PssX=sXr; PssX += offset;
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+   84 00000000                 MACRO
+   85 00000000                 STR2Q            $sXr, $sXi, $PssX, $offset
+   86 00000000                 STRH             $sXi, [$PssX, #2]
+   87 00000000                 STRH             $sXr, [$PssX]
+   88 00000000                 ADD              $PssX, $PssX, $offset
+   89 00000000                 MEND
+   90 00000000         
+   91 00000000         ; YY = Cplx_conjugate_mul(Y,K)
+   92 00000000         ;  Y = YYr + i*YYi
+   93 00000000         ; use the following trick
+   94 00000000         ;  K = (Kr-Ki) + i*Ki
+   95 00000000                 MACRO
+   96 00000000                 CXMUL_V7         $YYr, $YYi, $Yr, $Yi, $Kr, $Ki,
+$tmp,$tmp2
+   97 00000000                 SUB              $tmp2, $Yi, $Yr ; sYi-sYr
+   98 00000000                 MUL              $tmp, $tmp2, $Ki 
+                                                            ; (sYi-sYr)*sKi
+   99 00000000                 ADD              $tmp2, $Kr, $Ki, LSL#1 
+                                                            ; (sKr+sKi)
+  100 00000000                 MLA              $YYi, $Yi, $Kr, $tmp ; lYYi = s
+                                                            Yi*sKr-sYr*sKi
+  101 00000000                 MLA              $YYr, $Yr, $tmp2, $tmp ; lYYr =
+                                                             sYr*sKr+sYi*sKi
+  102 00000000                 MEND
+  103 00000000         
+  104 00000000         ; Four point complex Fast Fourier Transform  
+  105 00000000                 MACRO
+  106 00000000                 CXADDA4          $s
+  107 00000000         ; (C,D) = (C+D, C-D)
+  108 00000000                 ADD              Cr, Cr, Dr
+  109 00000000                 ADD              Ci, Ci, Di
+  110 00000000                 SUB              Dr, Cr, Dr, LSL#1
+  111 00000000                 SUB              Di, Ci, Di, LSL#1
+  112 00000000         ; (A,B) = (A+(B>>s), A-(B>>s))/4
+  113 00000000                 MOV              Ar, Ar, ASR#2
+  114 00000000                 MOV              Ai, Ai, ASR#2
+  115 00000000                 ADD              Ar, Ar, Br, ASR#(2+$s)
+  116 00000000                 ADD              Ai, Ai, Bi, ASR#(2+$s)
+  117 00000000                 SUB              Br, Ar, Br, ASR#(1+$s)
+  118 00000000                 SUB              Bi, Ai, Bi, ASR#(1+$s)
+  119 00000000         ; (A,C) = (A+(C>>s)/4, A-(C>>s)/4)
+  120 00000000                 ADD              Ar, Ar, Cr, ASR#(2+$s)
+  121 00000000                 ADD              Ai, Ai, Ci, ASR#(2+$s)
+  122 00000000                 SUB              Cr, Ar, Cr, ASR#(1+$s)
+  123 00000000                 SUB              Ci, Ai, Ci, ASR#(1+$s)
+  124 00000000         ; (B,D) = (B-i*(D>>s)/4, B+i*(D>>s)/4)
+  125 00000000                 ADD              Br, Br, Di, ASR#(2+$s)
+  126 00000000                 SUB              Bi, Bi, Dr, ASR#(2+$s)
+  127 00000000                 SUB              Di, Br, Di, ASR#(1+$s)
+  128 00000000                 ADD              Dr, Bi, Dr, ASR#(1+$s)
+  129 00000000                 MEND
+  130 00000000         
+  131 00000000         
+  132 00000000                 MACRO
+  133 00000000                 BUTFLY4ZERO_OPT  $pIN,$offset, $pOUT
+  134 00000000                 LDRSH            Ai, [$pIN, #2]
+  135 00000000                 LDRSH            Ar, [$pIN]
+  136 00000000                 ADD              $pIN, #NPT
+  137 00000000                 LDRSH            Ci, [$pIN, #2]
+
+
+
+ARM Macro Assembler    Page 4 
+
+
+  138 00000000                 LDRSH            Cr, [$pIN]
+  139 00000000                 ADD              $pIN, #NPT
+  140 00000000                 LDRSH            Bi, [$pIN, #2]
+  141 00000000                 LDRSH            Br, [$pIN]
+  142 00000000                 ADD              $pIN, #NPT
+  143 00000000                 LDRSH            Di, [$pIN, #2]
+  144 00000000                 LDRSH            Dr, [$pIN]
+  145 00000000                 ADD              $pIN, #NPT
+  146 00000000         
+  147 00000000         ; (C,D) = (C+D, C-D)
+  148 00000000                 ADD              Cr, Cr, Dr
+  149 00000000                 ADD              Ci, Ci, Di
+  150 00000000                 SUB              Dr, Cr, Dr, LSL#1 ; trick
+  151 00000000                 SUB              Di, Ci, Di, LSL#1 ;trick
+  152 00000000         ; (A,B) = (A+B)/4, (A-B)/4
+  153 00000000                 MOV              Ar, Ar, ASR#2
+  154 00000000                 MOV              Ai, Ai, ASR#2
+  155 00000000                 ADD              Ar, Ar, Br, ASR#2
+  156 00000000                 ADD              Ai, Ai, Bi, ASR#2
+  157 00000000                 SUB              Br, Ar, Br, ASR#1
+  158 00000000                 SUB              Bi, Ai, Bi, ASR#1
+  159 00000000         ; (A,C) = (A+C)/4, (A-C)/4
+  160 00000000                 ADD              Ar, Ar, Cr, ASR#2
+  161 00000000                 ADD              Ai, Ai, Ci, ASR#2
+  162 00000000                 SUB              Cr, Ar, Cr, ASR#1
+  163 00000000                 SUB              Ci, Ai, Ci, ASR#1
+  164 00000000         ; (B,D) = (B-i*D)/4, (B+i*D)/4
+  165 00000000                 ADD              Br, Br, Di, ASR#2
+  166 00000000                 SUB              Bi, Bi, Dr, ASR#2
+  167 00000000                 SUB              Di, Br, Di, ASR#1
+  168 00000000                 ADD              Dr, Bi, Dr, ASR#1
+  169 00000000         ;
+  170 00000000                 STRH             Ai, [$pOUT, #2]
+  171 00000000                 STRH             Ar, [$pOUT], #4
+  172 00000000                 STRH             Bi, [$pOUT, #2]
+  173 00000000                 STRH             Br, [$pOUT], #4
+  174 00000000                 STRH             Ci, [$pOUT, #2]
+  175 00000000                 STRH             Cr, [$pOUT], #4
+  176 00000000                 STRH             Dr, [$pOUT, #2] 
+                                                            ; inversion here
+  177 00000000                 STRH             Di, [$pOUT], #4
+  178 00000000                 MEND
+  179 00000000         
+  180 00000000                 MACRO
+  181 00000000                 BUTFLY4_V7       $pssDin,$offset,$pssDout,$qform
+at,$pssK
+  182 00000000                 LDR2Qm           Ar,Ai,$pssDin, $offset 
+                                                            ;-$offset
+  183 00000000                 LDR2Q            Dr,Di,$pssK, #4
+  184 00000000         ; format CXMUL_V7 YYr, YYi, Yr, Yi, Kr, Ki,tmp,tmp2
+  185 00000000                 CXMUL_V7         Dr,Di,Ar,Ai,Dr,Di,tmp,tmp2
+  186 00000000                 LDR2Qm           Ar,Ai,$pssDin,$offset ;-$offset
+                                                            
+  187 00000000                 LDR2Q            Cr,Ci,$pssK,#4
+  188 00000000                 CXMUL_V7         Cr,Ci,Ar,Ai,Cr,Ci,tmp,tmp2
+  189 00000000                 LDR2Qm           Ar,Ai, $pssDin, $offset 
+                                                            ;-$offset
+  190 00000000                 LDR2Q            Br,Bi, $pssK, #4
+  191 00000000                 CXMUL_V7         Br,Bi,Ar,Ai,Br,Bi,tmp,tmp2
+
+
+
+ARM Macro Assembler    Page 5 
+
+
+  192 00000000                 LDR2Q            Ar,Ai, $pssDin, #0
+  193 00000000                 CXADDA4          $qformat
+  194 00000000                 STRH             Ai, [$pssDout, #2]
+  195 00000000                 STRH             Ar, [$pssDout]
+  196 00000000                 ADD              $pssDout, $pssDout, $offset
+  197 00000000                 STRH             Bi, [$pssDout, #2]
+  198 00000000                 STRH             Br, [$pssDout]
+  199 00000000                 ADD              $pssDout, $pssDout, $offset
+  200 00000000                 STRH             Ci, [$pssDout, #2]
+  201 00000000                 STRH             Cr, [$pssDout]
+  202 00000000                 ADD              $pssDout, $pssDout, $offset
+  203 00000000                 STRH             Dr, [$pssDout, #2] 
+                                                            ; inversion here
+  204 00000000                 STRH             Di, [$pssDout], #4
+  205 00000000                 MEND
+  206 00000000         
+  207 00000000         ;-------------------    CODE    ------------------------
+                       --------
+  208 00000000         ;=======================================================
+                       ========================
+  209 00000000         ;*******************************************************
+                       ************************
+  210 00000000         ;* Function Name  : cr4_fft_1024_stm32
+  211 00000000         ;* Description    : complex radix-4 1024 points FFT
+  212 00000000         ;* Input          : - R0 = pssOUT: Output array .
+  213 00000000         ;*                  - R1 = pssIN: Input array 
+  214 00000000         ;*                  - R2 = Nbin: =1024 number of points,
+                        this optimized FFT function  
+  215 00000000         ;*                    can only convert 1024 points.
+  216 00000000         ;* Output         : None 
+  217 00000000         ;* Return         : None
+  218 00000000         ;*******************************************************
+                       ************************
+  219 00000000         cr4_fft_1024_stm32
+  220 00000000         
+  221 00000000 E92D 4FF0       STMFD            SP!, {R4-R11, LR}
+  222 00000004         
+  223 00000004 F04F 0C00       MOV              cntrbitrev, #0
+  224 00000008 F04F 0300       MOV              index,#0
+  225 0000000C         
+  226 0000000C         preloop_v7
+  227 0000000C EB01 5E9C       ADD              pssIN2, pssIN, cntrbitrev, LSR#
+22 
+                                                            ;1024-pts
+  228 00000010                 BUTFLY4ZERO_OPT  pssIN2,Nbin,pssOUT
+  134 00000010 F9BE 5002       LDRSH            Ai, [pssIN2, #2]
+  135 00000014 F9BE 4000       LDRSH            Ar, [pssIN2]
+  136 00000018 F50E 6E80       ADD              pssIN2, #NPT
+  137 0000001C F9BE 9002       LDRSH            Ci, [pssIN2, #2]
+  138 00000020 F9BE 8000       LDRSH            Cr, [pssIN2]
+  139 00000024 F50E 6E80       ADD              pssIN2, #NPT
+  140 00000028 F9BE 7002       LDRSH            Bi, [pssIN2, #2]
+  141 0000002C F9BE 6000       LDRSH            Br, [pssIN2]
+  142 00000030 F50E 6E80       ADD              pssIN2, #NPT
+  143 00000034 F9BE B002       LDRSH            Di, [pssIN2, #2]
+  144 00000038 F9BE A000       LDRSH            Dr, [pssIN2]
+  145 0000003C F50E 6E80       ADD              pssIN2, #NPT
+  146 00000040         
+  147 00000040         ; (C,D) = (C+D, C-D)
+
+
+
+ARM Macro Assembler    Page 6 
+
+
+  148 00000040 44D0            ADD              Cr, Cr, Dr
+  149 00000042 44D9            ADD              Ci, Ci, Di
+  150 00000044 EBA8 0A4A       SUB              Dr, Cr, Dr, LSL#1 ; trick
+  151 00000048 EBA9 0B4B       SUB              Di, Ci, Di, LSL#1 ;trick
+  152 0000004C         ; (A,B) = (A+B)/4, (A-B)/4
+  153 0000004C EA4F 04A4       MOV              Ar, Ar, ASR#2
+  154 00000050 EA4F 05A5       MOV              Ai, Ai, ASR#2
+  155 00000054 EB04 04A6       ADD              Ar, Ar, Br, ASR#2
+  156 00000058 EB05 05A7       ADD              Ai, Ai, Bi, ASR#2
+  157 0000005C EBA4 0666       SUB              Br, Ar, Br, ASR#1
+  158 00000060 EBA5 0767       SUB              Bi, Ai, Bi, ASR#1
+  159 00000064         ; (A,C) = (A+C)/4, (A-C)/4
+  160 00000064 EB04 04A8       ADD              Ar, Ar, Cr, ASR#2
+  161 00000068 EB05 05A9       ADD              Ai, Ai, Ci, ASR#2
+  162 0000006C EBA4 0868       SUB              Cr, Ar, Cr, ASR#1
+  163 00000070 EBA5 0969       SUB              Ci, Ai, Ci, ASR#1
+  164 00000074         ; (B,D) = (B-i*D)/4, (B+i*D)/4
+  165 00000074 EB06 06AB       ADD              Br, Br, Di, ASR#2
+  166 00000078 EBA7 07AA       SUB              Bi, Bi, Dr, ASR#2
+  167 0000007C EBA6 0B6B       SUB              Di, Br, Di, ASR#1
+  168 00000080 EB07 0A6A       ADD              Dr, Bi, Dr, ASR#1
+  169 00000084         ;
+  170 00000084 8045            STRH             Ai, [pssOUT, #2]
+  171 00000086 F820 4B04       STRH             Ar, [pssOUT], #4
+  172 0000008A 8047            STRH             Bi, [pssOUT, #2]
+  173 0000008C F820 6B04       STRH             Br, [pssOUT], #4
+  174 00000090 F8A0 9002       STRH             Ci, [pssOUT, #2]
+  175 00000094 F820 8B04       STRH             Cr, [pssOUT], #4
+  176 00000098 F8A0 A002       STRH             Dr, [pssOUT, #2] 
+                                                            ; inversion here
+  177 0000009C F820 BB04       STRH             Di, [pssOUT], #4
+  229 000000A0                 INC              index
+   57 000000A0 F103 0301       ADD              index,index,#1
+  230 000000A4 FA93 FCA3       RBIT             cntrbitrev,index
+  231 000000A8 F5B3 7F80       CMP              index,#256  ;1024-pts
+  232 000000AC D1AE            BNE              preloop_v7
+  233 000000AE         
+  234 000000AE         
+  235 000000AE EBA0 0182       SUB              pssX, pssOUT, Nbin, LSL#2
+  236 000000B2 F04F 0310       MOV              index, #16
+  237 000000B6 0912            MOVS             butternbr, Nbin, LSR#4 ;dual us
+                                                            e of register 
+  238 000000B8         
+  239 000000B8         ;-------------------------------------------------------
+                       -----------------------
+  240 000000B8         ;   The FFT coefficients table can be stored into Flash 
+                       or RAM. 
+  241 000000B8         ;   The following two lines of code allow selecting the 
+                       method for coefficients 
+  242 000000B8         ;   storage. 
+  243 000000B8         ;   In the case of choosing coefficients in RAM, you hav
+                       e to:
+  244 000000B8         ;   1. Include the file table_fft.h, which is a part of 
+                       the DSP library, 
+  245 000000B8         ;      in your main file.
+  246 000000B8         ;   2. Decomment the line LDR.W pssK, =TableFFT and comm
+                       ent the line 
+  247 000000B8         ;      ADRL    pssK, TableFFT_V7
+  248 000000B8         ;   3. Comment all the TableFFT_V7 data.
+
+
+
+ARM Macro Assembler    Page 7 
+
+
+  249 000000B8         ;-------------------------------------------------------
+                       -----------------------
+  250 000000B8 F20F 1034 
+              F100 0000        ADRL             pssK, TableFFT_V7 
+                                                            ; Coeff in Flash 
+  251 000000C0         ;LDR.W pssK, =TableFFT      ; Coeff in RAM 
+  252 000000C0         
+  253 000000C0         ;................................
+  254 000000C0         passloop_v7
+  255 000000C0 B406            STMFD            SP!, {pssX,butternbr}
+  256 000000C2 EB03 0C43       ADD              tmp, index, index, LSL#1
+  257 000000C6 4461            ADD              pssX, pssX, tmp
+  258 000000C8 F5A2 3280       SUB              butternbr, butternbr, #1<<16
+  259 000000CC         ;................
+  260 000000CC         grouploop_v7
+  261 000000CC EB02 3283       ADD              butternbr,butternbr,index,LSL#(
+16-2)
+  262 000000D0         ;.......
+  263 000000D0         butterloop_v7
+  264 000000D0                 BUTFLY4_V7       pssX,index,pssX,14,pssK
+  182 000000D0                 LDR2Qm           Ar,Ai,pssX, index ;-$offset
+   78 000000D0 F9B1 5002       LDRSH            Ai, [pssX, #2]
+   79 000000D4 F9B1 4000       LDRSH            Ar, [pssX]
+   80 000000D8 EBA1 0103       SUB              pssX, pssX, index
+  183 000000DC                 LDR2Q            Dr,Di,pssK, #4
+   70 000000DC F9B0 B002       LDRSH            Di, [pssK, #2]
+   71 000000E0 F9B0 A000       LDRSH            Dr, [pssK]
+   72 000000E4 F100 0004       ADD              pssK, pssK, #4
+  184 000000E8         ; format CXMUL_V7 YYr, YYi, Yr, Yi, Kr, Ki,tmp,tmp2
+  185 000000E8                 CXMUL_V7         Dr,Di,Ar,Ai,Dr,Di,tmp,tmp2
+   97 000000E8 EBA5 0E04       SUB              tmp2, Ai, Ar ; sYi-sYr
+   98 000000EC FB0E FC0B       MUL              tmp, tmp2, Di ; (sYi-sYr)*sKi
+   99 000000F0 EB0A 0E4B       ADD              tmp2, Dr, Di, LSL#1 ; (sKr+sKi)
+                                                            
+  100 000000F4 FB05 CB0A       MLA              Di, Ai, Dr, tmp ; lYYi = sYi*sK
+                                                            r-sYr*sKi
+  101 000000F8 FB04 CA0E       MLA              Dr, Ar, tmp2, tmp ; lYYr = sYr*
+                                                            sKr+sYi*sKi
+  186 000000FC                 LDR2Qm           Ar,Ai,pssX,index ;-$offset
+   78 000000FC F9B1 5002       LDRSH            Ai, [pssX, #2]
+   79 00000100 F9B1 4000       LDRSH            Ar, [pssX]
+   80 00000104 EBA1 0103       SUB              pssX, pssX, index
+  187 00000108                 LDR2Q            Cr,Ci,pssK,#4
+   70 00000108 F9B0 9002       LDRSH            Ci, [pssK, #2]
+   71 0000010C F9B0 8000       LDRSH            Cr, [pssK]
+   72 00000110 F100 0004       ADD              pssK, pssK, #4
+  188 00000114                 CXMUL_V7         Cr,Ci,Ar,Ai,Cr,Ci,tmp,tmp2
+   97 00000114 EBA5 0E04       SUB              tmp2, Ai, Ar ; sYi-sYr
+   98 00000118 FB0E FC09       MUL              tmp, tmp2, Ci ; (sYi-sYr)*sKi
+   99 0000011C EB08 0E49       ADD              tmp2, Cr, Ci, LSL#1 ; (sKr+sKi)
+                                                            
+  100 00000120 FB05 C908       MLA              Ci, Ai, Cr, tmp ; lYYi = sYi*sK
+                                                            r-sYr*sKi
+  101 00000124 FB04 C80E       MLA              Cr, Ar, tmp2, tmp ; lYYr = sYr*
+                                                            sKr+sYi*sKi
+  189 00000128                 LDR2Qm           Ar,Ai, pssX, index ;-$offset
+   78 00000128 F9B1 5002       LDRSH            Ai, [pssX, #2]
+   79 0000012C F9B1 4000       LDRSH            Ar, [pssX]
+   80 00000130 EBA1 0103       SUB              pssX, pssX, index
+
+
+
+ARM Macro Assembler    Page 8 
+
+
+  190 00000134                 LDR2Q            Br,Bi, pssK, #4
+   70 00000134 F9B0 7002       LDRSH            Bi, [pssK, #2]
+   71 00000138 F9B0 6000       LDRSH            Br, [pssK]
+   72 0000013C F100 0004       ADD              pssK, pssK, #4
+  191 00000140                 CXMUL_V7         Br,Bi,Ar,Ai,Br,Bi,tmp,tmp2
+   97 00000140 EBA5 0E04       SUB              tmp2, Ai, Ar ; sYi-sYr
+   98 00000144 FB0E FC07       MUL              tmp, tmp2, Bi ; (sYi-sYr)*sKi
+   99 00000148 EB06 0E47       ADD              tmp2, Br, Bi, LSL#1 ; (sKr+sKi)
+                                                            
+  100 0000014C FB05 C706       MLA              Bi, Ai, Br, tmp ; lYYi = sYi*sK
+                                                            r-sYr*sKi
+  101 00000150 FB04 C60E       MLA              Br, Ar, tmp2, tmp ; lYYr = sYr*
+                                                            sKr+sYi*sKi
+  192 00000154                 LDR2Q            Ar,Ai, pssX, #0
+   70 00000154 F9B1 5002       LDRSH            Ai, [pssX, #2]
+   71 00000158 F9B1 4000       LDRSH            Ar, [pssX]
+   72 0000015C F101 0100       ADD              pssX, pssX, #0
+  193 00000160                 CXADDA4          14
+  107 00000160         ; (C,D) = (C+D, C-D)
+  108 00000160 44D0            ADD              Cr, Cr, Dr
+  109 00000162 44D9            ADD              Ci, Ci, Di
+  110 00000164 EBA8 0A4A       SUB              Dr, Cr, Dr, LSL#1
+  111 00000168 EBA9 0B4B       SUB              Di, Ci, Di, LSL#1
+  112 0000016C         ; (A,B) = (A+(B>>s), A-(B>>s))/4
+  113 0000016C EA4F 04A4       MOV              Ar, Ar, ASR#2
+  114 00000170 EA4F 05A5       MOV              Ai, Ai, ASR#2
+  115 00000174 EB04 4426       ADD              Ar, Ar, Br, ASR#(2+14)
+  116 00000178 EB05 4527       ADD              Ai, Ai, Bi, ASR#(2+14)
+  117 0000017C EBA4 36E6       SUB              Br, Ar, Br, ASR#(1+14)
+  118 00000180 EBA5 37E7       SUB              Bi, Ai, Bi, ASR#(1+14)
+  119 00000184         ; (A,C) = (A+(C>>s)/4, A-(C>>s)/4)
+  120 00000184 EB04 4428       ADD              Ar, Ar, Cr, ASR#(2+14)
+  121 00000188 EB05 4529       ADD              Ai, Ai, Ci, ASR#(2+14)
+  122 0000018C EBA4 38E8       SUB              Cr, Ar, Cr, ASR#(1+14)
+  123 00000190 EBA5 39E9       SUB              Ci, Ai, Ci, ASR#(1+14)
+  124 00000194         ; (B,D) = (B-i*(D>>s)/4, B+i*(D>>s)/4)
+  125 00000194 EB06 462B       ADD              Br, Br, Di, ASR#(2+14)
+  126 00000198 EBA7 472A       SUB              Bi, Bi, Dr, ASR#(2+14)
+  127 0000019C EBA6 3BEB       SUB              Di, Br, Di, ASR#(1+14)
+  128 000001A0 EB07 3AEA       ADD              Dr, Bi, Dr, ASR#(1+14)
+  194 000001A4 804D            STRH             Ai, [pssX, #2]
+  195 000001A6 800C            STRH             Ar, [pssX]
+  196 000001A8 4419            ADD              pssX, pssX, index
+  197 000001AA 804F            STRH             Bi, [pssX, #2]
+  198 000001AC 800E            STRH             Br, [pssX]
+  199 000001AE 4419            ADD              pssX, pssX, index
+  200 000001B0 F8A1 9002       STRH             Ci, [pssX, #2]
+  201 000001B4 F8A1 8000       STRH             Cr, [pssX]
+  202 000001B8 4419            ADD              pssX, pssX, index
+  203 000001BA F8A1 A002       STRH             Dr, [pssX, #2] ; inversion here
+                                                            
+  204 000001BE F821 BB04       STRH             Di, [pssX], #4
+  265 000001C2 F5B2 3280       SUBS             butternbr,butternbr, #1<<16
+  266 000001C6 DA83            BGE              butterloop_v7
+  267 000001C8         ;.......
+  268 000001C8 EB03 0C43       ADD              tmp, index, index, LSL#1
+  269 000001CC 4461            ADD              pssX, pssX, tmp
+  270 000001CE                 DEC              butternbr
+   52 000001CE F1A2 0201       SUB              butternbr,butternbr,#1
+
+
+
+ARM Macro Assembler    Page 9 
+
+
+  271 000001D2 EA5F 4E02       MOVS             tmp2, butternbr, LSL#16
+  272 000001D6 BF18            IT               NE
+  273 000001D8 EBA0 000C       SUBNE            pssK, pssK, tmp
+  274 000001DC F47F AF76       BNE              grouploop_v7
+  275 000001E0         ;................
+  276 000001E0 BC06            LDMFD            sp!, {pssX, butternbr}
+  277 000001E2                 QUAD             index
+   63 000001E2 EA4F 0383       MOV              index,index,LSL#2
+  278 000001E6 0892            MOVS             butternbr, butternbr, LSR#2 ; l
+                                                            oop nbr /= radix 
+  279 000001E8 F47F AF6A       BNE              passloop_v7
+  280 000001EC         ;................................
+  281 000001EC E8BD 8FF0       LDMFD            SP!, {R4-R11, PC}
+  282 000001F0         
+  283 000001F0         ;=======================================================
+                       ======================
+  284 000001F0         
+  285 000001F0         TableFFT_V7
+  286 000001F0         ;N=16
+  287 000001F0 00 40 00 
+              00 00 40 
+              00 00 00 
+              40 00 00         DCW              0x4000,0x0000, 0x4000,0x0000, 0
+x4000,0x0000
+  288 000001FC 5D DD 21 
+              3B A3 22 
+              7E 18 00 
+              00 41 2D         DCW              0xdd5d,0x3b21, 0x22a3,0x187e, 0
+x0000,0x2d41
+  289 00000208 7E A5 41 
+              2D 00 00 
+              41 2D 00 
+              C0 00 40         DCW              0xa57e,0x2d41, 0x0000,0x2d41, 0
+xc000,0x4000
+  290 00000214 5D DD 82 
+              E7 5D DD 
+              21 3B 7E 
+              A5 41 2D         DCW              0xdd5d,0xe782, 0xdd5d,0x3b21, 0
+xa57e,0x2d41
+  291 00000220         ; N=64
+  292 00000220 00 40 00 
+              00 00 40 
+              00 00 00 
+              40 00 00         DCW              0x4000,0x0000, 0x4000,0x0000, 0
+x4000,0x0000
+  293 0000022C AA 2A 94 
+              12 6B 39 
+              46 06 49 
+              32 7C 0C         DCW              0x2aaa,0x1294, 0x396b,0x0646, 0
+x3249,0x0c7c
+  294 00000238 A8 11 8E 
+              23 49 32 
+              7C 0C A3 
+              22 7E 18         DCW              0x11a8,0x238e, 0x3249,0x0c7c, 0
+x22a3,0x187e
+  295 00000244 21 F7 79 
+              31 AA 2A 
+              94 12 A8 
+              11 8E 23         DCW              0xf721,0x3179, 0x2aaa,0x1294, 0
+
+
+
+ARM Macro Assembler    Page 10 
+
+
+x11a8,0x238e
+  296 00000250 5D DD 21 
+              3B A3 22 
+              7E 18 00 
+              00 41 2D         DCW              0xdd5d,0x3b21, 0x22a3,0x187e, 0
+x0000,0x2d41
+  297 0000025C 95 C6 B1 
+              3F 46 1A 
+              2B 1E 58 
+              EE 37 35         DCW              0xc695,0x3fb1, 0x1a46,0x1e2b, 0
+xee58,0x3537
+  298 00000268 BE B4 C5 
+              3E A8 11 
+              8E 23 5D 
+              DD 21 3B         DCW              0xb4be,0x3ec5, 0x11a8,0x238e, 0
+xdd5d,0x3b21
+  299 00000274 63 A9 71 
+              38 DF 08 
+              9A 28 B7 
+              CD C5 3E         DCW              0xa963,0x3871, 0x08df,0x289a, 0
+xcdb7,0x3ec5
+  300 00000280 7E A5 41 
+              2D 00 00 
+              41 2D 00 
+              C0 00 40         DCW              0xa57e,0x2d41, 0x0000,0x2d41, 0
+xc000,0x4000
+  301 0000028C 63 A9 2B 
+              1E 21 F7 
+              79 31 BE 
+              B4 C5 3E         DCW              0xa963,0x1e2b, 0xf721,0x3179, 0
+xb4be,0x3ec5
+  302 00000298 BE B4 7C 
+              0C 58 EE 
+              37 35 61 
+              AC 21 3B         DCW              0xb4be,0x0c7c, 0xee58,0x3537, 0
+xac61,0x3b21
+  303 000002A4 95 C6 BA 
+              F9 BA E5 
+              71 38 3B 
+              A7 37 35         DCW              0xc695,0xf9ba, 0xe5ba,0x3871, 0
+xa73b,0x3537
+  304 000002B0 5D DD 82 
+              E7 5D DD 
+              21 3B 7E 
+              A5 41 2D         DCW              0xdd5d,0xe782, 0xdd5d,0x3b21, 0
+xa57e,0x2d41
+  305 000002BC 21 F7 66 
+              D7 56 D5 
+              3F 3D 3B 
+              A7 8E 23         DCW              0xf721,0xd766, 0xd556,0x3d3f, 0
+xa73b,0x238e
+  306 000002C8 A8 11 C9 
+              CA B7 CD 
+              C5 3E 61 
+              AC 7E 18         DCW              0x11a8,0xcac9, 0xcdb7,0x3ec5, 0
+xac61,0x187e
+  307 000002D4 AA 2A C1 
+              C2 95 C6 
+              B1 3F BE 
+
+
+
+ARM Macro Assembler    Page 11 
+
+
+              B4 7C 0C         DCW              0x2aaa,0xc2c1, 0xc695,0x3fb1, 0
+xb4be,0x0c7c
+  308 000002E0         ; N=256
+  309 000002E0 00 40 00 
+              00 00 40 
+              00 00 00 
+              40 00 00         DCW              0x4000,0x0000, 0x4000,0x0000, 0
+x4000,0x0000
+  310 000002EC 1E 3B B5 
+              04 69 3E 
+              92 01 C8 
+              3C 24 03         DCW              0x3b1e,0x04b5, 0x3e69,0x0192, 0
+x3cc8,0x0324
+  311 000002F8 EB 35 64 
+              09 C8 3C 
+              24 03 6B 
+              39 46 06         DCW              0x35eb,0x0964, 0x3cc8,0x0324, 0
+x396b,0x0646
+  312 00000304 6C 30 06 
+              0E 1E 3B 
+              B5 04 EB 
+              35 64 09         DCW              0x306c,0x0e06, 0x3b1e,0x04b5, 0
+x35eb,0x0964
+  313 00000310 AA 2A 94 
+              12 6B 39 
+              46 06 49 
+              32 7C 0C         DCW              0x2aaa,0x1294, 0x396b,0x0646, 0
+x3249,0x0c7c
+  314 0000031C AE 24 09 
+              17 AF 37 
+              D6 07 88 
+              2E 8D 0F         DCW              0x24ae,0x1709, 0x37af,0x07d6, 0
+x2e88,0x0f8d
+  315 00000328 7E 1E 5D 
+              1B EB 35 
+              64 09 AA 
+              2A 94 12         DCW              0x1e7e,0x1b5d, 0x35eb,0x0964, 0
+x2aaa,0x1294
+  316 00000334 24 18 8C 
+              1F 1E 34 
+              F1 0A B3 
+              26 90 15         DCW              0x1824,0x1f8c, 0x341e,0x0af1, 0
+x26b3,0x1590
+  317 00000340 A8 11 8E 
+              23 49 32 
+              7C 0C A3 
+              22 7E 18         DCW              0x11a8,0x238e, 0x3249,0x0c7c, 0
+x22a3,0x187e
+  318 0000034C 14 0B 60 
+              27 6C 30 
+              06 0E 7E 
+              1E 5D 1B         DCW              0x0b14,0x2760, 0x306c,0x0e06, 0
+x1e7e,0x1b5d
+  319 00000358 71 04 FB 
+              2A 88 2E 
+              8D 0F 46 
+              1A 2B 1E         DCW              0x0471,0x2afb, 0x2e88,0x0f8d, 0
+x1a46,0x1e2b
+  320 00000364 C7 FD 5A 
+
+
+
+ARM Macro Assembler    Page 12 
+
+
+              2E 9D 2C 
+              12 11 FE 
+              15 E7 20         DCW              0xfdc7,0x2e5a, 0x2c9d,0x1112, 0
+x15fe,0x20e7
+  321 00000370 21 F7 79 
+              31 AA 2A 
+              94 12 A8 
+              11 8E 23         DCW              0xf721,0x3179, 0x2aaa,0x1294, 0
+x11a8,0x238e
+  322 0000037C 87 F0 53 
+              34 B2 28 
+              13 14 48 
+              0D 20 26         DCW              0xf087,0x3453, 0x28b2,0x1413, 0
+x0d48,0x2620
+  323 00000388 02 EA E5 
+              36 B3 26 
+              90 15 DF 
+              08 9A 28         DCW              0xea02,0x36e5, 0x26b3,0x1590, 0
+x08df,0x289a
+  324 00000394 9C E3 2B 
+              39 AE 24 
+              09 17 71 
+              04 FB 2A         DCW              0xe39c,0x392b, 0x24ae,0x1709, 0
+x0471,0x2afb
+  325 000003A0 5D DD 21 
+              3B A3 22 
+              7E 18 00 
+              00 41 2D         DCW              0xdd5d,0x3b21, 0x22a3,0x187e, 0
+x0000,0x2d41
+  326 000003AC 4E D7 C5 
+              3C 93 20 
+              EF 19 8F 
+              FB 6C 2F         DCW              0xd74e,0x3cc5, 0x2093,0x19ef, 0
+xfb8f,0x2f6c
+  327 000003B8 78 D1 15 
+              3E 7E 1E 
+              5D 1B 21 
+              F7 79 31         DCW              0xd178,0x3e15, 0x1e7e,0x1b5d, 0
+xf721,0x3179
+  328 000003C4 E2 CB 0F 
+              3F 64 1C 
+              C6 1C B8 
+              F2 68 33         DCW              0xcbe2,0x3f0f, 0x1c64,0x1cc6, 0
+xf2b8,0x3368
+  329 000003D0 95 C6 B1 
+              3F 46 1A 
+              2B 1E 58 
+              EE 37 35         DCW              0xc695,0x3fb1, 0x1a46,0x1e2b, 0
+xee58,0x3537
+  330 000003DC 97 C1 FB 
+              3F 24 18 
+              8C 1F 02 
+              EA E5 36         DCW              0xc197,0x3ffb, 0x1824,0x1f8c, 0
+xea02,0x36e5
+  331 000003E8 F0 BC EC 
+              3F FE 15 
+              E7 20 BA 
+              E5 71 38         DCW              0xbcf0,0x3fec, 0x15fe,0x20e7, 0
+xe5ba,0x3871
+
+
+
+ARM Macro Assembler    Page 13 
+
+
+  332 000003F4 A6 B8 85 
+              3F D5 13 
+              3D 22 82 
+              E1 DB 39         DCW              0xb8a6,0x3f85, 0x13d5,0x223d, 0
+xe182,0x39db
+  333 00000400 BE B4 C5 
+              3E A8 11 
+              8E 23 5D 
+              DD 21 3B         DCW              0xb4be,0x3ec5, 0x11a8,0x238e, 0
+xdd5d,0x3b21
+  334 0000040C 40 B1 AF 
+              3D 79 0F 
+              DA 24 4D 
+              D9 42 3C         DCW              0xb140,0x3daf, 0x0f79,0x24da, 0
+xd94d,0x3c42
+  335 00000418 2E AE 42 
+              3C 48 0D 
+              20 26 56 
+              D5 3F 3D         DCW              0xae2e,0x3c42, 0x0d48,0x2620, 0
+xd556,0x3d3f
+  336 00000424 8E AB 82 
+              3A 14 0B 
+              60 27 78 
+              D1 15 3E         DCW              0xab8e,0x3a82, 0x0b14,0x2760, 0
+xd178,0x3e15
+  337 00000430 63 A9 71 
+              38 DF 08 
+              9A 28 B7 
+              CD C5 3E         DCW              0xa963,0x3871, 0x08df,0x289a, 0
+xcdb7,0x3ec5
+  338 0000043C B1 A7 12 
+              36 A9 06 
+              CE 29 15 
+              CA 4F 3F         DCW              0xa7b1,0x3612, 0x06a9,0x29ce, 0
+xca15,0x3f4f
+  339 00000448 78 A6 68 
+              33 71 04 
+              FB 2A 95 
+              C6 B1 3F         DCW              0xa678,0x3368, 0x0471,0x2afb, 0
+xc695,0x3fb1
+  340 00000454 BC A5 76 
+              30 39 02 
+              21 2C 38 
+              C3 EC 3F         DCW              0xa5bc,0x3076, 0x0239,0x2c21, 0
+xc338,0x3fec
+  341 00000460 7E A5 41 
+              2D 00 00 
+              41 2D 00 
+              C0 00 40         DCW              0xa57e,0x2d41, 0x0000,0x2d41, 0
+xc000,0x4000
+  342 0000046C BC A5 CE 
+              29 C7 FD 
+              5A 2E F0 
+              BC EC 3F         DCW              0xa5bc,0x29ce, 0xfdc7,0x2e5a, 0
+xbcf0,0x3fec
+  343 00000478 78 A6 20 
+              26 8F FB 
+              6C 2F 09 
+              BA B1 3F         DCW              0xa678,0x2620, 0xfb8f,0x2f6c, 0
+
+
+
+ARM Macro Assembler    Page 14 
+
+
+xba09,0x3fb1
+  344 00000484 B1 A7 3D 
+              22 57 F9 
+              76 30 4D 
+              B7 4F 3F         DCW              0xa7b1,0x223d, 0xf957,0x3076, 0
+xb74d,0x3f4f
+  345 00000490 63 A9 2B 
+              1E 21 F7 
+              79 31 BE 
+              B4 C5 3E         DCW              0xa963,0x1e2b, 0xf721,0x3179, 0
+xb4be,0x3ec5
+  346 0000049C 8E AB EF 
+              19 EC F4 
+              74 32 5E 
+              B2 15 3E         DCW              0xab8e,0x19ef, 0xf4ec,0x3274, 0
+xb25e,0x3e15
+  347 000004A8 2E AE 90 
+              15 B8 F2 
+              68 33 2D 
+              B0 3F 3D         DCW              0xae2e,0x1590, 0xf2b8,0x3368, 0
+xb02d,0x3d3f
+  348 000004B4 40 B1 12 
+              11 87 F0 
+              53 34 2E 
+              AE 42 3C         DCW              0xb140,0x1112, 0xf087,0x3453, 0
+xae2e,0x3c42
+  349 000004C0 BE B4 7C 
+              0C 58 EE 
+              37 35 61 
+              AC 21 3B         DCW              0xb4be,0x0c7c, 0xee58,0x3537, 0
+xac61,0x3b21
+  350 000004CC A6 B8 D6 
+              07 2B EC 
+              12 36 C8 
+              AA DB 39         DCW              0xb8a6,0x07d6, 0xec2b,0x3612, 0
+xaac8,0x39db
+  351 000004D8 F0 BC 24 
+              03 02 EA 
+              E5 36 63 
+              A9 71 38         DCW              0xbcf0,0x0324, 0xea02,0x36e5, 0
+xa963,0x3871
+  352 000004E4 97 C1 6E 
+              FE DC E7 
+              B0 37 34 
+              A8 E5 36         DCW              0xc197,0xfe6e, 0xe7dc,0x37b0, 0
+xa834,0x36e5
+  353 000004F0 95 C6 BA 
+              F9 BA E5 
+              71 38 3B 
+              A7 37 35         DCW              0xc695,0xf9ba, 0xe5ba,0x3871, 0
+xa73b,0x3537
+  354 000004FC E2 CB 0F 
+              F5 9C E3 
+              2B 39 78 
+              A6 68 33         DCW              0xcbe2,0xf50f, 0xe39c,0x392b, 0
+xa678,0x3368
+  355 00000508 78 D1 73 
+              F0 82 E1 
+              DB 39 ED 
+
+
+
+ARM Macro Assembler    Page 15 
+
+
+              A5 79 31         DCW              0xd178,0xf073, 0xe182,0x39db, 0
+xa5ed,0x3179
+  356 00000514 4E D7 ED 
+              EB 6D DF 
+              82 3A 99 
+              A5 6C 2F         DCW              0xd74e,0xebed, 0xdf6d,0x3a82, 0
+xa599,0x2f6c
+  357 00000520 5D DD 82 
+              E7 5D DD 
+              21 3B 7E 
+              A5 41 2D         DCW              0xdd5d,0xe782, 0xdd5d,0x3b21, 0
+xa57e,0x2d41
+  358 0000052C 9C E3 3A 
+              E3 52 DB 
+              B6 3B 99 
+              A5 FB 2A         DCW              0xe39c,0xe33a, 0xdb52,0x3bb6, 0
+xa599,0x2afb
+  359 00000538 02 EA 19 
+              DF 4D D9 
+              42 3C ED 
+              A5 9A 28         DCW              0xea02,0xdf19, 0xd94d,0x3c42, 0
+xa5ed,0x289a
+  360 00000544 87 F0 26 
+              DB 4E D7 
+              C5 3C 78 
+              A6 20 26         DCW              0xf087,0xdb26, 0xd74e,0x3cc5, 0
+xa678,0x2620
+  361 00000550 21 F7 66 
+              D7 56 D5 
+              3F 3D 3B 
+              A7 8E 23         DCW              0xf721,0xd766, 0xd556,0x3d3f, 0
+xa73b,0x238e
+  362 0000055C C7 FD DF 
+              D3 63 D3 
+              AF 3D 34 
+              A8 E7 20         DCW              0xfdc7,0xd3df, 0xd363,0x3daf, 0
+xa834,0x20e7
+  363 00000568 71 04 94 
+              D0 78 D1 
+              15 3E 63 
+              A9 2B 1E         DCW              0x0471,0xd094, 0xd178,0x3e15, 0
+xa963,0x1e2b
+  364 00000574 14 0B 8C 
+              CD 94 CF 
+              72 3E C8 
+              AA 5D 1B         DCW              0x0b14,0xcd8c, 0xcf94,0x3e72, 0
+xaac8,0x1b5d
+  365 00000580 A8 11 C9 
+              CA B7 CD 
+              C5 3E 61 
+              AC 7E 18         DCW              0x11a8,0xcac9, 0xcdb7,0x3ec5, 0
+xac61,0x187e
+  366 0000058C 24 18 50 
+              C8 E2 CB 
+              0F 3F 2E 
+              AE 90 15         DCW              0x1824,0xc850, 0xcbe2,0x3f0f, 0
+xae2e,0x1590
+  367 00000598 7E 1E 25 
+              C6 15 CA 
+
+
+
+ARM Macro Assembler    Page 16 
+
+
+              4F 3F 2D 
+              B0 94 12         DCW              0x1e7e,0xc625, 0xca15,0x3f4f, 0
+xb02d,0x1294
+  368 000005A4 AE 24 4A 
+              C4 51 C8 
+              85 3F 5E 
+              B2 8D 0F         DCW              0x24ae,0xc44a, 0xc851,0x3f85, 0
+xb25e,0x0f8d
+  369 000005B0 AA 2A C1 
+              C2 95 C6 
+              B1 3F BE 
+              B4 7C 0C         DCW              0x2aaa,0xc2c1, 0xc695,0x3fb1, 0
+xb4be,0x0c7c
+  370 000005BC 6C 30 8E 
+              C1 E2 C4 
+              D4 3F 4D 
+              B7 64 09         DCW              0x306c,0xc18e, 0xc4e2,0x3fd4, 0
+xb74d,0x0964
+  371 000005C8 EB 35 B1 
+              C0 38 C3 
+              EC 3F 09 
+              BA 46 06         DCW              0x35eb,0xc0b1, 0xc338,0x3fec, 0
+xba09,0x0646
+  372 000005D4 1E 3B 2C 
+              C0 97 C1 
+              FB 3F F0 
+              BC 24 03         DCW              0x3b1e,0xc02c, 0xc197,0x3ffb, 0
+xbcf0,0x0324
+  373 000005E0         ; N=1024
+  374 000005E0 00 40 00 
+              00 00 40 
+              00 00 00 
+              40 00 00         DCW              0x4000,0x0000, 0x4000,0x0000, 0
+x4000,0x0000
+  375 000005EC D0 3E 2E 
+              01 9B 3F 
+              65 00 36 
+              3F C9 00         DCW              0x3ed0,0x012e, 0x3f9b,0x0065, 0
+x3f36,0x00c9
+  376 000005F8 9A 3D 5B 
+              02 36 3F 
+              C9 00 69 
+              3E 92 01         DCW              0x3d9a,0x025b, 0x3f36,0x00c9, 0
+x3e69,0x0192
+  377 00000604 5F 3C 88 
+              03 D0 3E 
+              2E 01 9A 
+              3D 5B 02         DCW              0x3c5f,0x0388, 0x3ed0,0x012e, 0
+x3d9a,0x025b
+  378 00000610 1E 3B B5 
+              04 69 3E 
+              92 01 C8 
+              3C 24 03         DCW              0x3b1e,0x04b5, 0x3e69,0x0192, 0
+x3cc8,0x0324
+  379 0000061C D9 39 E2 
+              05 02 3E 
+              F7 01 F4 
+              3B ED 03         DCW              0x39d9,0x05e2, 0x3e02,0x01f7, 0
+x3bf4,0x03ed
+
+
+
+ARM Macro Assembler    Page 17 
+
+
+  380 00000628 8E 38 0E 
+              07 9A 3D 
+              5B 02 1E 
+              3B B5 04         DCW              0x388e,0x070e, 0x3d9a,0x025b, 0
+x3b1e,0x04b5
+  381 00000634 3F 37 39 
+              08 31 3D 
+              C0 02 46 
+              3A 7E 05         DCW              0x373f,0x0839, 0x3d31,0x02c0, 0
+x3a46,0x057e
+  382 00000640 EB 35 64 
+              09 C8 3C 
+              24 03 6B 
+              39 46 06         DCW              0x35eb,0x0964, 0x3cc8,0x0324, 0
+x396b,0x0646
+  383 0000064C 92 34 8E 
+              0A 5F 3C 
+              88 03 8E 
+              38 0E 07         DCW              0x3492,0x0a8e, 0x3c5f,0x0388, 0
+x388e,0x070e
+  384 00000658 34 33 B7 
+              0B F4 3B 
+              ED 03 AF 
+              37 D6 07         DCW              0x3334,0x0bb7, 0x3bf4,0x03ed, 0
+x37af,0x07d6
+  385 00000664 D2 31 DF 
+              0C 8A 3B 
+              51 04 CE 
+              36 9D 08         DCW              0x31d2,0x0cdf, 0x3b8a,0x0451, 0
+x36ce,0x089d
+  386 00000670 6C 30 06 
+              0E 1E 3B 
+              B5 04 EB 
+              35 64 09         DCW              0x306c,0x0e06, 0x3b1e,0x04b5, 0
+x35eb,0x0964
+  387 0000067C 02 2F 2B 
+              0F B2 3A 
+              1A 05 05 
+              35 2B 0A         DCW              0x2f02,0x0f2b, 0x3ab2,0x051a, 0
+x3505,0x0a2b
+  388 00000688 93 2D 50 
+              10 46 3A 
+              7E 05 1E 
+              34 F1 0A         DCW              0x2d93,0x1050, 0x3a46,0x057e, 0
+x341e,0x0af1
+  389 00000694 21 2C 73 
+              11 D9 39 
+              E2 05 34 
+              33 B7 0B         DCW              0x2c21,0x1173, 0x39d9,0x05e2, 0
+x3334,0x0bb7
+  390 000006A0 AA 2A 94 
+              12 6B 39 
+              46 06 49 
+              32 7C 0C         DCW              0x2aaa,0x1294, 0x396b,0x0646, 0
+x3249,0x0c7c
+  391 000006AC 31 29 B4 
+              13 FD 38 
+              AA 06 5B 
+              31 41 0D         DCW              0x2931,0x13b4, 0x38fd,0x06aa, 0
+
+
+
+ARM Macro Assembler    Page 18 
+
+
+x315b,0x0d41
+  392 000006B8 B3 27 D2 
+              14 8E 38 
+              0E 07 6C 
+              30 06 0E         DCW              0x27b3,0x14d2, 0x388e,0x070e, 0
+x306c,0x0e06
+  393 000006C4 32 26 EE 
+              15 1F 38 
+              72 07 7B 
+              2F CA 0E         DCW              0x2632,0x15ee, 0x381f,0x0772, 0
+x2f7b,0x0eca
+  394 000006D0 AE 24 09 
+              17 AF 37 
+              D6 07 88 
+              2E 8D 0F         DCW              0x24ae,0x1709, 0x37af,0x07d6, 0
+x2e88,0x0f8d
+  395 000006DC 26 23 21 
+              18 3F 37 
+              39 08 93 
+              2D 50 10         DCW              0x2326,0x1821, 0x373f,0x0839, 0
+x2d93,0x1050
+  396 000006E8 9C 21 37 
+              19 CE 36 
+              9D 08 9D 
+              2C 12 11         DCW              0x219c,0x1937, 0x36ce,0x089d, 0
+x2c9d,0x1112
+  397 000006F4 0E 20 4B 
+              1A 5D 36 
+              01 09 A4 
+              2B D3 11         DCW              0x200e,0x1a4b, 0x365d,0x0901, 0
+x2ba4,0x11d3
+  398 00000700 7E 1E 5D 
+              1B EB 35 
+              64 09 AA 
+              2A 94 12         DCW              0x1e7e,0x1b5d, 0x35eb,0x0964, 0
+x2aaa,0x1294
+  399 0000070C EB 1C 6C 
+              1C 78 35 
+              C7 09 AF 
+              29 54 13         DCW              0x1ceb,0x1c6c, 0x3578,0x09c7, 0
+x29af,0x1354
+  400 00000718 56 1B 79 
+              1D 05 35 
+              2B 0A B2 
+              28 13 14         DCW              0x1b56,0x1d79, 0x3505,0x0a2b, 0
+x28b2,0x1413
+  401 00000724 BE 19 84 
+              1E 92 34 
+              8E 0A B3 
+              27 D2 14         DCW              0x19be,0x1e84, 0x3492,0x0a8e, 0
+x27b3,0x14d2
+  402 00000730 24 18 8C 
+              1F 1E 34 
+              F1 0A B3 
+              26 90 15         DCW              0x1824,0x1f8c, 0x341e,0x0af1, 0
+x26b3,0x1590
+  403 0000073C 88 16 91 
+              20 A9 33 
+              54 0B B1 
+
+
+
+ARM Macro Assembler    Page 19 
+
+
+              25 4C 16         DCW              0x1688,0x2091, 0x33a9,0x0b54, 0
+x25b1,0x164c
+  404 00000748 EA 14 93 
+              21 34 33 
+              B7 0B AE 
+              24 09 17         DCW              0x14ea,0x2193, 0x3334,0x0bb7, 0
+x24ae,0x1709
+  405 00000754 4A 13 92 
+              22 BF 32 
+              1A 0C A9 
+              23 C4 17         DCW              0x134a,0x2292, 0x32bf,0x0c1a, 0
+x23a9,0x17c4
+  406 00000760 A8 11 8E 
+              23 49 32 
+              7C 0C A3 
+              22 7E 18         DCW              0x11a8,0x238e, 0x3249,0x0c7c, 0
+x22a3,0x187e
+  407 0000076C 05 10 88 
+              24 D2 31 
+              DF 0C 9C 
+              21 37 19         DCW              0x1005,0x2488, 0x31d2,0x0cdf, 0
+x219c,0x1937
+  408 00000778 61 0E 7E 
+              25 5B 31 
+              41 0D 93 
+              20 EF 19         DCW              0x0e61,0x257e, 0x315b,0x0d41, 0
+x2093,0x19ef
+  409 00000784 BB 0C 71 
+              26 E4 30 
+              A4 0D 89 
+              1F A7 1A         DCW              0x0cbb,0x2671, 0x30e4,0x0da4, 0
+x1f89,0x1aa7
+  410 00000790 14 0B 60 
+              27 6C 30 
+              06 0E 7E 
+              1E 5D 1B         DCW              0x0b14,0x2760, 0x306c,0x0e06, 0
+x1e7e,0x1b5d
+  411 0000079C 6D 09 4C 
+              28 F4 2F 
+              68 0E 72 
+              1D 12 1C         DCW              0x096d,0x284c, 0x2ff4,0x0e68, 0
+x1d72,0x1c12
+  412 000007A8 C4 07 35 
+              29 7B 2F 
+              CA 0E 64 
+              1C C6 1C         DCW              0x07c4,0x2935, 0x2f7b,0x0eca, 0
+x1c64,0x1cc6
+  413 000007B4 1B 06 1A 
+              2A 02 2F 
+              2B 0F 56 
+              1B 79 1D         DCW              0x061b,0x2a1a, 0x2f02,0x0f2b, 0
+x1b56,0x1d79
+  414 000007C0 71 04 FB 
+              2A 88 2E 
+              8D 0F 46 
+              1A 2B 1E         DCW              0x0471,0x2afb, 0x2e88,0x0f8d, 0
+x1a46,0x1e2b
+  415 000007CC C7 02 D8 
+              2B 0E 2E 
+
+
+
+ARM Macro Assembler    Page 20 
+
+
+              EE 0F 35 
+              19 DC 1E         DCW              0x02c7,0x2bd8, 0x2e0e,0x0fee, 0
+x1935,0x1edc
+  416 000007D8 1C 01 B2 
+              2C 93 2D 
+              50 10 24 
+              18 8C 1F         DCW              0x011c,0x2cb2, 0x2d93,0x1050, 0
+x1824,0x1f8c
+  417 000007E4 72 FF 88 
+              2D 18 2D 
+              B1 10 11 
+              17 3A 20         DCW              0xff72,0x2d88, 0x2d18,0x10b1, 0
+x1711,0x203a
+  418 000007F0 C7 FD 5A 
+              2E 9D 2C 
+              12 11 FE 
+              15 E7 20         DCW              0xfdc7,0x2e5a, 0x2c9d,0x1112, 0
+x15fe,0x20e7
+  419 000007FC 1D FC 28 
+              2F 21 2C 
+              73 11 EA 
+              14 93 21         DCW              0xfc1d,0x2f28, 0x2c21,0x1173, 0
+x14ea,0x2193
+  420 00000808 73 FA F2 
+              2F A4 2B 
+              D3 11 D5 
+              13 3D 22         DCW              0xfa73,0x2ff2, 0x2ba4,0x11d3, 0
+x13d5,0x223d
+  421 00000814 CA F8 B8 
+              30 28 2B 
+              34 12 BF 
+              12 E7 22         DCW              0xf8ca,0x30b8, 0x2b28,0x1234, 0
+x12bf,0x22e7
+  422 00000820 21 F7 79 
+              31 AA 2A 
+              94 12 A8 
+              11 8E 23         DCW              0xf721,0x3179, 0x2aaa,0x1294, 0
+x11a8,0x238e
+  423 0000082C 79 F5 36 
+              32 2D 2A 
+              F4 12 91 
+              10 35 24         DCW              0xf579,0x3236, 0x2a2d,0x12f4, 0
+x1091,0x2435
+  424 00000838 D2 F3 EF 
+              32 AF 29 
+              54 13 79 
+              0F DA 24         DCW              0xf3d2,0x32ef, 0x29af,0x1354, 0
+x0f79,0x24da
+  425 00000844 2C F2 A3 
+              33 31 29 
+              B4 13 61 
+              0E 7E 25         DCW              0xf22c,0x33a3, 0x2931,0x13b4, 0
+x0e61,0x257e
+  426 00000850 87 F0 53 
+              34 B2 28 
+              13 14 48 
+              0D 20 26         DCW              0xf087,0x3453, 0x28b2,0x1413, 0
+x0d48,0x2620
+  427 0000085C E3 EE FF 
+
+
+
+ARM Macro Assembler    Page 21 
+
+
+              34 33 28 
+              73 14 2E 
+              0C C1 26         DCW              0xeee3,0x34ff, 0x2833,0x1473, 0
+x0c2e,0x26c1
+  428 00000868 41 ED A5 
+              35 B3 27 
+              D2 14 14 
+              0B 60 27         DCW              0xed41,0x35a5, 0x27b3,0x14d2, 0
+x0b14,0x2760
+  429 00000874 A1 EB 48 
+              36 33 27 
+              31 15 FA 
+              09 FE 27         DCW              0xeba1,0x3648, 0x2733,0x1531, 0
+x09fa,0x27fe
+  430 00000880 02 EA E5 
+              36 B3 26 
+              90 15 DF 
+              08 9A 28         DCW              0xea02,0x36e5, 0x26b3,0x1590, 0
+x08df,0x289a
+  431 0000088C 65 E8 7E 
+              37 32 26 
+              EE 15 C4 
+              07 35 29         DCW              0xe865,0x377e, 0x2632,0x15ee, 0
+x07c4,0x2935
+  432 00000898 CB E6 12 
+              38 B1 25 
+              4C 16 A9 
+              06 CE 29         DCW              0xe6cb,0x3812, 0x25b1,0x164c, 0
+x06a9,0x29ce
+  433 000008A4 32 E5 A1 
+              38 2F 25 
+              AB 16 8D 
+              05 65 2A         DCW              0xe532,0x38a1, 0x252f,0x16ab, 0
+x058d,0x2a65
+  434 000008B0 9C E3 2B 
+              39 AE 24 
+              09 17 71 
+              04 FB 2A         DCW              0xe39c,0x392b, 0x24ae,0x1709, 0
+x0471,0x2afb
+  435 000008BC 08 E2 B0 
+              39 2B 24 
+              66 17 55 
+              03 8F 2B         DCW              0xe208,0x39b0, 0x242b,0x1766, 0
+x0355,0x2b8f
+  436 000008C8 77 E0 30 
+              3A A9 23 
+              C4 17 39 
+              02 21 2C         DCW              0xe077,0x3a30, 0x23a9,0x17c4, 0
+x0239,0x2c21
+  437 000008D4 E9 DE AB 
+              3A 26 23 
+              21 18 1C 
+              01 B2 2C         DCW              0xdee9,0x3aab, 0x2326,0x1821, 0
+x011c,0x2cb2
+  438 000008E0 5D DD 21 
+              3B A3 22 
+              7E 18 00 
+              00 41 2D         DCW              0xdd5d,0x3b21, 0x22a3,0x187e, 0
+x0000,0x2d41
+
+
+
+ARM Macro Assembler    Page 22 
+
+
+  439 000008EC D5 DB 92 
+              3B 1F 22 
+              DB 18 E4 
+              FE CF 2D         DCW              0xdbd5,0x3b92, 0x221f,0x18db, 0
+xfee4,0x2dcf
+  440 000008F8 4F DA FD 
+              3B 9C 21 
+              37 19 C7 
+              FD 5A 2E         DCW              0xda4f,0x3bfd, 0x219c,0x1937, 0
+xfdc7,0x2e5a
+  441 00000904 CD D8 64 
+              3C 17 21 
+              93 19 AB 
+              FC E4 2E         DCW              0xd8cd,0x3c64, 0x2117,0x1993, 0
+xfcab,0x2ee4
+  442 00000910 4E D7 C5 
+              3C 93 20 
+              EF 19 8F 
+              FB 6C 2F         DCW              0xd74e,0x3cc5, 0x2093,0x19ef, 0
+xfb8f,0x2f6c
+  443 0000091C D3 D5 21 
+              3D 0E 20 
+              4B 1A 73 
+              FA F2 2F         DCW              0xd5d3,0x3d21, 0x200e,0x1a4b, 0
+xfa73,0x2ff2
+  444 00000928 5C D4 78 
+              3D 89 1F 
+              A7 1A 57 
+              F9 76 30         DCW              0xd45c,0x3d78, 0x1f89,0x1aa7, 0
+xf957,0x3076
+  445 00000934 E8 D2 C9 
+              3D 04 1F 
+              02 1B 3C 
+              F8 F9 30         DCW              0xd2e8,0x3dc9, 0x1f04,0x1b02, 0
+xf83c,0x30f9
+  446 00000940 78 D1 15 
+              3E 7E 1E 
+              5D 1B 21 
+              F7 79 31         DCW              0xd178,0x3e15, 0x1e7e,0x1b5d, 0
+xf721,0x3179
+  447 0000094C 0C D0 5C 
+              3E F8 1D 
+              B8 1B 06 
+              F6 F8 31         DCW              0xd00c,0x3e5c, 0x1df8,0x1bb8, 0
+xf606,0x31f8
+  448 00000958 A5 CE 9D 
+              3E 72 1D 
+              12 1C EC 
+              F4 74 32         DCW              0xcea5,0x3e9d, 0x1d72,0x1c12, 0
+xf4ec,0x3274
+  449 00000964 41 CD D8 
+              3E EB 1C 
+              6C 1C D2 
+              F3 EF 32         DCW              0xcd41,0x3ed8, 0x1ceb,0x1c6c, 0
+xf3d2,0x32ef
+  450 00000970 E2 CB 0F 
+              3F 64 1C 
+              C6 1C B8 
+              F2 68 33         DCW              0xcbe2,0x3f0f, 0x1c64,0x1cc6, 0
+
+
+
+ARM Macro Assembler    Page 23 
+
+
+xf2b8,0x3368
+  451 0000097C 88 CA 40 
+              3F DD 1B 
+              20 1D 9F 
+              F1 DF 33         DCW              0xca88,0x3f40, 0x1bdd,0x1d20, 0
+xf19f,0x33df
+  452 00000988 32 C9 6B 
+              3F 56 1B 
+              79 1D 87 
+              F0 53 34         DCW              0xc932,0x3f6b, 0x1b56,0x1d79, 0
+xf087,0x3453
+  453 00000994 E1 C7 91 
+              3F CE 1A 
+              D3 1D 6F 
+              EF C6 34         DCW              0xc7e1,0x3f91, 0x1ace,0x1dd3, 0
+xef6f,0x34c6
+  454 000009A0 95 C6 B1 
+              3F 46 1A 
+              2B 1E 58 
+              EE 37 35         DCW              0xc695,0x3fb1, 0x1a46,0x1e2b, 0
+xee58,0x3537
+  455 000009AC 4E C5 CC 
+              3F BE 19 
+              84 1E 41 
+              ED A5 35         DCW              0xc54e,0x3fcc, 0x19be,0x1e84, 0
+xed41,0x35a5
+  456 000009B8 0C C4 E1 
+              3F 35 19 
+              DC 1E 2B 
+              EC 12 36         DCW              0xc40c,0x3fe1, 0x1935,0x1edc, 0
+xec2b,0x3612
+  457 000009C4 CF C2 F1 
+              3F AD 18 
+              34 1F 16 
+              EB 7D 36         DCW              0xc2cf,0x3ff1, 0x18ad,0x1f34, 0
+xeb16,0x367d
+  458 000009D0 97 C1 FB 
+              3F 24 18 
+              8C 1F 02 
+              EA E5 36         DCW              0xc197,0x3ffb, 0x1824,0x1f8c, 0
+xea02,0x36e5
+  459 000009DC 65 C0 00 
+              40 9B 17 
+              E3 1F EF 
+              E8 4B 37         DCW              0xc065,0x4000, 0x179b,0x1fe3, 0
+xe8ef,0x374b
+  460 000009E8 38 BF FF 
+              3F 11 17 
+              3A 20 DC 
+              E7 B0 37         DCW              0xbf38,0x3fff, 0x1711,0x203a, 0
+xe7dc,0x37b0
+  461 000009F4 11 BE F8 
+              3F 88 16 
+              91 20 CB 
+              E6 12 38         DCW              0xbe11,0x3ff8, 0x1688,0x2091, 0
+xe6cb,0x3812
+  462 00000A00 F0 BC EC 
+              3F FE 15 
+              E7 20 BA 
+
+
+
+ARM Macro Assembler    Page 24 
+
+
+              E5 71 38         DCW              0xbcf0,0x3fec, 0x15fe,0x20e7, 0
+xe5ba,0x3871
+  463 00000A0C D4 BB DB 
+              3F 74 15 
+              3D 21 AA 
+              E4 CF 38         DCW              0xbbd4,0x3fdb, 0x1574,0x213d, 0
+xe4aa,0x38cf
+  464 00000A18 BF BA C4 
+              3F EA 14 
+              93 21 9C 
+              E3 2B 39         DCW              0xbabf,0x3fc4, 0x14ea,0x2193, 0
+xe39c,0x392b
+  465 00000A24 AF B9 A7 
+              3F 5F 14 
+              E8 21 8E 
+              E2 84 39         DCW              0xb9af,0x3fa7, 0x145f,0x21e8, 0
+xe28e,0x3984
+  466 00000A30 A6 B8 85 
+              3F D5 13 
+              3D 22 82 
+              E1 DB 39         DCW              0xb8a6,0x3f85, 0x13d5,0x223d, 0
+xe182,0x39db
+  467 00000A3C A2 B7 5D 
+              3F 4A 13 
+              92 22 77 
+              E0 30 3A         DCW              0xb7a2,0x3f5d, 0x134a,0x2292, 0
+xe077,0x3a30
+  468 00000A48 A5 B6 30 
+              3F BF 12 
+              E7 22 6D 
+              DF 82 3A         DCW              0xb6a5,0x3f30, 0x12bf,0x22e7, 0
+xdf6d,0x3a82
+  469 00000A54 AF B5 FD 
+              3E 34 12 
+              3B 23 64 
+              DE D3 3A         DCW              0xb5af,0x3efd, 0x1234,0x233b, 0
+xde64,0x3ad3
+  470 00000A60 BE B4 C5 
+              3E A8 11 
+              8E 23 5D 
+              DD 21 3B         DCW              0xb4be,0x3ec5, 0x11a8,0x238e, 0
+xdd5d,0x3b21
+  471 00000A6C D5 B3 88 
+              3E 1D 11 
+              E2 23 57 
+              DC 6D 3B         DCW              0xb3d5,0x3e88, 0x111d,0x23e2, 0
+xdc57,0x3b6d
+  472 00000A78 F2 B2 45 
+              3E 91 10 
+              35 24 52 
+              DB B6 3B         DCW              0xb2f2,0x3e45, 0x1091,0x2435, 0
+xdb52,0x3bb6
+  473 00000A84 15 B2 FC 
+              3D 05 10 
+              88 24 4F 
+              DA FD 3B         DCW              0xb215,0x3dfc, 0x1005,0x2488, 0
+xda4f,0x3bfd
+  474 00000A90 40 B1 AF 
+              3D 79 0F 
+
+
+
+ARM Macro Assembler    Page 25 
+
+
+              DA 24 4D 
+              D9 42 3C         DCW              0xb140,0x3daf, 0x0f79,0x24da, 0
+xd94d,0x3c42
+  475 00000A9C 71 B0 5B 
+              3D ED 0E 
+              2C 25 4D 
+              D8 85 3C         DCW              0xb071,0x3d5b, 0x0eed,0x252c, 0
+xd84d,0x3c85
+  476 00000AA8 A9 AF 03 
+              3D 61 0E 
+              7E 25 4E 
+              D7 C5 3C         DCW              0xafa9,0x3d03, 0x0e61,0x257e, 0
+xd74e,0x3cc5
+  477 00000AB4 E8 AE A5 
+              3C D4 0D 
+              CF 25 51 
+              D6 03 3D         DCW              0xaee8,0x3ca5, 0x0dd4,0x25cf, 0
+xd651,0x3d03
+  478 00000AC0 2E AE 42 
+              3C 48 0D 
+              20 26 56 
+              D5 3F 3D         DCW              0xae2e,0x3c42, 0x0d48,0x2620, 0
+xd556,0x3d3f
+  479 00000ACC 7B AD DA 
+              3B BB 0C 
+              71 26 5C 
+              D4 78 3D         DCW              0xad7b,0x3bda, 0x0cbb,0x2671, 0
+xd45c,0x3d78
+  480 00000AD8 D0 AC 6D 
+              3B 2E 0C 
+              C1 26 63 
+              D3 AF 3D         DCW              0xacd0,0x3b6d, 0x0c2e,0x26c1, 0
+xd363,0x3daf
+  481 00000AE4 2B AC FA 
+              3A A1 0B 
+              11 27 6D 
+              D2 E3 3D         DCW              0xac2b,0x3afa, 0x0ba1,0x2711, 0
+xd26d,0x3de3
+  482 00000AF0 8E AB 82 
+              3A 14 0B 
+              60 27 78 
+              D1 15 3E         DCW              0xab8e,0x3a82, 0x0b14,0x2760, 0
+xd178,0x3e15
+  483 00000AFC F8 AA 06 
+              3A 87 0A 
+              AF 27 85 
+              D0 45 3E         DCW              0xaaf8,0x3a06, 0x0a87,0x27af, 0
+xd085,0x3e45
+  484 00000B08 6A AA 84 
+              39 FA 09 
+              FE 27 94 
+              CF 72 3E         DCW              0xaa6a,0x3984, 0x09fa,0x27fe, 0
+xcf94,0x3e72
+  485 00000B14 E3 A9 FD 
+              38 6D 09 
+              4C 28 A5 
+              CE 9D 3E         DCW              0xa9e3,0x38fd, 0x096d,0x284c, 0
+xcea5,0x3e9d
+  486 00000B20 63 A9 71 
+
+
+
+ARM Macro Assembler    Page 26 
+
+
+              38 DF 08 
+              9A 28 B7 
+              CD C5 3E         DCW              0xa963,0x3871, 0x08df,0x289a, 0
+xcdb7,0x3ec5
+  487 00000B2C EB A8 E1 
+              37 52 08 
+              E7 28 CC 
+              CC EB 3E         DCW              0xa8eb,0x37e1, 0x0852,0x28e7, 0
+xcccc,0x3eeb
+  488 00000B38 7B A8 4B 
+              37 C4 07 
+              35 29 E2 
+              CB 0F 3F         DCW              0xa87b,0x374b, 0x07c4,0x2935, 0
+xcbe2,0x3f0f
+  489 00000B44 12 A8 B1 
+              36 36 07 
+              81 29 FB 
+              CA 30 3F         DCW              0xa812,0x36b1, 0x0736,0x2981, 0
+xcafb,0x3f30
+  490 00000B50 B1 A7 12 
+              36 A9 06 
+              CE 29 15 
+              CA 4F 3F         DCW              0xa7b1,0x3612, 0x06a9,0x29ce, 0
+xca15,0x3f4f
+  491 00000B5C 57 A7 6E 
+              35 1B 06 
+              1A 2A 32 
+              C9 6B 3F         DCW              0xa757,0x356e, 0x061b,0x2a1a, 0
+xc932,0x3f6b
+  492 00000B68 05 A7 C6 
+              34 8D 05 
+              65 2A 51 
+              C8 85 3F         DCW              0xa705,0x34c6, 0x058d,0x2a65, 0
+xc851,0x3f85
+  493 00000B74 BB A6 19 
+              34 FF 04 
+              B0 2A 72 
+              C7 9C 3F         DCW              0xa6bb,0x3419, 0x04ff,0x2ab0, 0
+xc772,0x3f9c
+  494 00000B80 78 A6 68 
+              33 71 04 
+              FB 2A 95 
+              C6 B1 3F         DCW              0xa678,0x3368, 0x0471,0x2afb, 0
+xc695,0x3fb1
+  495 00000B8C 3E A6 B2 
+              32 E3 03 
+              45 2B BA 
+              C5 C4 3F         DCW              0xa63e,0x32b2, 0x03e3,0x2b45, 0
+xc5ba,0x3fc4
+  496 00000B98 0B A6 F8 
+              31 55 03 
+              8F 2B E2 
+              C4 D4 3F         DCW              0xa60b,0x31f8, 0x0355,0x2b8f, 0
+xc4e2,0x3fd4
+  497 00000BA4 E0 A5 39 
+              31 C7 02 
+              D8 2B 0C 
+              C4 E1 3F         DCW              0xa5e0,0x3139, 0x02c7,0x2bd8, 0
+xc40c,0x3fe1
+
+
+
+ARM Macro Assembler    Page 27 
+
+
+  498 00000BB0 BC A5 76 
+              30 39 02 
+              21 2C 38 
+              C3 EC 3F         DCW              0xa5bc,0x3076, 0x0239,0x2c21, 0
+xc338,0x3fec
+  499 00000BBC A1 A5 AF 
+              2F AA 01 
+              6A 2C 66 
+              C2 F5 3F         DCW              0xa5a1,0x2faf, 0x01aa,0x2c6a, 0
+xc266,0x3ff5
+  500 00000BC8 8D A5 E4 
+              2E 1C 01 
+              B2 2C 97 
+              C1 FB 3F         DCW              0xa58d,0x2ee4, 0x011c,0x2cb2, 0
+xc197,0x3ffb
+  501 00000BD4 81 A5 15 
+              2E 8E 00 
+              FA 2C CA 
+              C0 FF 3F         DCW              0xa581,0x2e15, 0x008e,0x2cfa, 0
+xc0ca,0x3fff
+  502 00000BE0 7E A5 41 
+              2D 00 00 
+              41 2D 00 
+              C0 00 40         DCW              0xa57e,0x2d41, 0x0000,0x2d41, 0
+xc000,0x4000
+  503 00000BEC 81 A5 6A 
+              2C 72 FF 
+              88 2D 38 
+              BF FF 3F         DCW              0xa581,0x2c6a, 0xff72,0x2d88, 0
+xbf38,0x3fff
+  504 00000BF8 8D A5 8F 
+              2B E4 FE 
+              CF 2D 73 
+              BE FB 3F         DCW              0xa58d,0x2b8f, 0xfee4,0x2dcf, 0
+xbe73,0x3ffb
+  505 00000C04 A1 A5 B0 
+              2A 56 FE 
+              15 2E B0 
+              BD F5 3F         DCW              0xa5a1,0x2ab0, 0xfe56,0x2e15, 0
+xbdb0,0x3ff5
+  506 00000C10 BC A5 CE 
+              29 C7 FD 
+              5A 2E F0 
+              BC EC 3F         DCW              0xa5bc,0x29ce, 0xfdc7,0x2e5a, 0
+xbcf0,0x3fec
+  507 00000C1C E0 A5 E7 
+              28 39 FD 
+              9F 2E 32 
+              BC E1 3F         DCW              0xa5e0,0x28e7, 0xfd39,0x2e9f, 0
+xbc32,0x3fe1
+  508 00000C28 0B A6 FE 
+              27 AB FC 
+              E4 2E 77 
+              BB D4 3F         DCW              0xa60b,0x27fe, 0xfcab,0x2ee4, 0
+xbb77,0x3fd4
+  509 00000C34 3E A6 11 
+              27 1D FC 
+              28 2F BF 
+              BA C4 3F         DCW              0xa63e,0x2711, 0xfc1d,0x2f28, 0
+
+
+
+ARM Macro Assembler    Page 28 
+
+
+xbabf,0x3fc4
+  510 00000C40 78 A6 20 
+              26 8F FB 
+              6C 2F 09 
+              BA B1 3F         DCW              0xa678,0x2620, 0xfb8f,0x2f6c, 0
+xba09,0x3fb1
+  511 00000C4C BB A6 2C 
+              25 01 FB 
+              AF 2F 56 
+              B9 9C 3F         DCW              0xa6bb,0x252c, 0xfb01,0x2faf, 0
+xb956,0x3f9c
+  512 00000C58 05 A7 35 
+              24 73 FA 
+              F2 2F A6 
+              B8 85 3F         DCW              0xa705,0x2435, 0xfa73,0x2ff2, 0
+xb8a6,0x3f85
+  513 00000C64 57 A7 3B 
+              23 E5 F9 
+              34 30 F8 
+              B7 6B 3F         DCW              0xa757,0x233b, 0xf9e5,0x3034, 0
+xb7f8,0x3f6b
+  514 00000C70 B1 A7 3D 
+              22 57 F9 
+              76 30 4D 
+              B7 4F 3F         DCW              0xa7b1,0x223d, 0xf957,0x3076, 0
+xb74d,0x3f4f
+  515 00000C7C 12 A8 3D 
+              21 CA F8 
+              B8 30 A5 
+              B6 30 3F         DCW              0xa812,0x213d, 0xf8ca,0x30b8, 0
+xb6a5,0x3f30
+  516 00000C88 7B A8 3A 
+              20 3C F8 
+              F9 30 00 
+              B6 0F 3F         DCW              0xa87b,0x203a, 0xf83c,0x30f9, 0
+xb600,0x3f0f
+  517 00000C94 EB A8 34 
+              1F AE F7 
+              39 31 5E 
+              B5 EB 3E         DCW              0xa8eb,0x1f34, 0xf7ae,0x3139, 0
+xb55e,0x3eeb
+  518 00000CA0 63 A9 2B 
+              1E 21 F7 
+              79 31 BE 
+              B4 C5 3E         DCW              0xa963,0x1e2b, 0xf721,0x3179, 0
+xb4be,0x3ec5
+  519 00000CAC E3 A9 20 
+              1D 93 F6 
+              B9 31 22 
+              B4 9D 3E         DCW              0xa9e3,0x1d20, 0xf693,0x31b9, 0
+xb422,0x3e9d
+  520 00000CB8 6A AA 12 
+              1C 06 F6 
+              F8 31 88 
+              B3 72 3E         DCW              0xaa6a,0x1c12, 0xf606,0x31f8, 0
+xb388,0x3e72
+  521 00000CC4 F8 AA 02 
+              1B 79 F5 
+              36 32 F2 
+
+
+
+ARM Macro Assembler    Page 29 
+
+
+              B2 45 3E         DCW              0xaaf8,0x1b02, 0xf579,0x3236, 0
+xb2f2,0x3e45
+  522 00000CD0 8E AB EF 
+              19 EC F4 
+              74 32 5E 
+              B2 15 3E         DCW              0xab8e,0x19ef, 0xf4ec,0x3274, 0
+xb25e,0x3e15
+  523 00000CDC 2B AC DB 
+              18 5F F4 
+              B2 32 CD 
+              B1 E3 3D         DCW              0xac2b,0x18db, 0xf45f,0x32b2, 0
+xb1cd,0x3de3
+  524 00000CE8 D0 AC C4 
+              17 D2 F3 
+              EF 32 40 
+              B1 AF 3D         DCW              0xacd0,0x17c4, 0xf3d2,0x32ef, 0
+xb140,0x3daf
+  525 00000CF4 7B AD AB 
+              16 45 F3 
+              2C 33 B5 
+              B0 78 3D         DCW              0xad7b,0x16ab, 0xf345,0x332c, 0
+xb0b5,0x3d78
+  526 00000D00 2E AE 90 
+              15 B8 F2 
+              68 33 2D 
+              B0 3F 3D         DCW              0xae2e,0x1590, 0xf2b8,0x3368, 0
+xb02d,0x3d3f
+  527 00000D0C E8 AE 73 
+              14 2C F2 
+              A3 33 A9 
+              AF 03 3D         DCW              0xaee8,0x1473, 0xf22c,0x33a3, 0
+xafa9,0x3d03
+  528 00000D18 A9 AF 54 
+              13 9F F1 
+              DF 33 28 
+              AF C5 3C         DCW              0xafa9,0x1354, 0xf19f,0x33df, 0
+xaf28,0x3cc5
+  529 00000D24 71 B0 34 
+              12 13 F1 
+              19 34 A9 
+              AE 85 3C         DCW              0xb071,0x1234, 0xf113,0x3419, 0
+xaea9,0x3c85
+  530 00000D30 40 B1 12 
+              11 87 F0 
+              53 34 2E 
+              AE 42 3C         DCW              0xb140,0x1112, 0xf087,0x3453, 0
+xae2e,0x3c42
+  531 00000D3C 15 B2 EE 
+              0F FB EF 
+              8D 34 B6 
+              AD FD 3B         DCW              0xb215,0x0fee, 0xeffb,0x348d, 0
+xadb6,0x3bfd
+  532 00000D48 F2 B2 CA 
+              0E 6F EF 
+              C6 34 41 
+              AD B6 3B         DCW              0xb2f2,0x0eca, 0xef6f,0x34c6, 0
+xad41,0x3bb6
+  533 00000D54 D5 B3 A4 
+              0D E3 EE 
+
+
+
+ARM Macro Assembler    Page 30 
+
+
+              FF 34 D0 
+              AC 6D 3B         DCW              0xb3d5,0x0da4, 0xeee3,0x34ff, 0
+xacd0,0x3b6d
+  534 00000D60 BE B4 7C 
+              0C 58 EE 
+              37 35 61 
+              AC 21 3B         DCW              0xb4be,0x0c7c, 0xee58,0x3537, 0
+xac61,0x3b21
+  535 00000D6C AF B5 54 
+              0B CC ED 
+              6E 35 F6 
+              AB D3 3A         DCW              0xb5af,0x0b54, 0xedcc,0x356e, 0
+xabf6,0x3ad3
+  536 00000D78 A5 B6 2B 
+              0A 41 ED 
+              A5 35 8E 
+              AB 82 3A         DCW              0xb6a5,0x0a2b, 0xed41,0x35a5, 0
+xab8e,0x3a82
+  537 00000D84 A2 B7 01 
+              09 B6 EC 
+              DC 35 29 
+              AB 30 3A         DCW              0xb7a2,0x0901, 0xecb6,0x35dc, 0
+xab29,0x3a30
+  538 00000D90 A6 B8 D6 
+              07 2B EC 
+              12 36 C8 
+              AA DB 39         DCW              0xb8a6,0x07d6, 0xec2b,0x3612, 0
+xaac8,0x39db
+  539 00000D9C AF B9 AA 
+              06 A1 EB 
+              48 36 6A 
+              AA 84 39         DCW              0xb9af,0x06aa, 0xeba1,0x3648, 0
+xaa6a,0x3984
+  540 00000DA8 BF BA 7E 
+              05 16 EB 
+              7D 36 0F 
+              AA 2B 39         DCW              0xbabf,0x057e, 0xeb16,0x367d, 0
+xaa0f,0x392b
+  541 00000DB4 D4 BB 51 
+              04 8C EA 
+              B1 36 B7 
+              A9 CF 38         DCW              0xbbd4,0x0451, 0xea8c,0x36b1, 0
+xa9b7,0x38cf
+  542 00000DC0 F0 BC 24 
+              03 02 EA 
+              E5 36 63 
+              A9 71 38         DCW              0xbcf0,0x0324, 0xea02,0x36e5, 0
+xa963,0x3871
+  543 00000DCC 11 BE F7 
+              01 78 E9 
+              18 37 12 
+              A9 12 38         DCW              0xbe11,0x01f7, 0xe978,0x3718, 0
+xa912,0x3812
+  544 00000DD8 38 BF C9 
+              00 EF E8 
+              4B 37 C5 
+              A8 B0 37         DCW              0xbf38,0x00c9, 0xe8ef,0x374b, 0
+xa8c5,0x37b0
+  545 00000DE4 65 C0 9B 
+
+
+
+ARM Macro Assembler    Page 31 
+
+
+              FF 65 E8 
+              7E 37 7B 
+              A8 4B 37         DCW              0xc065,0xff9b, 0xe865,0x377e, 0
+xa87b,0x374b
+  546 00000DF0 97 C1 6E 
+              FE DC E7 
+              B0 37 34 
+              A8 E5 36         DCW              0xc197,0xfe6e, 0xe7dc,0x37b0, 0
+xa834,0x36e5
+  547 00000DFC CF C2 40 
+              FD 53 E7 
+              E1 37 F1 
+              A7 7D 36         DCW              0xc2cf,0xfd40, 0xe753,0x37e1, 0
+xa7f1,0x367d
+  548 00000E08 0C C4 13 
+              FC CB E6 
+              12 38 B1 
+              A7 12 36         DCW              0xc40c,0xfc13, 0xe6cb,0x3812, 0
+xa7b1,0x3612
+  549 00000E14 4E C5 E6 
+              FA 42 E6 
+              42 38 74 
+              A7 A5 35         DCW              0xc54e,0xfae6, 0xe642,0x3842, 0
+xa774,0x35a5
+  550 00000E20 95 C6 BA 
+              F9 BA E5 
+              71 38 3B 
+              A7 37 35         DCW              0xc695,0xf9ba, 0xe5ba,0x3871, 0
+xa73b,0x3537
+  551 00000E2C E1 C7 8E 
+              F8 32 E5 
+              A1 38 05 
+              A7 C6 34         DCW              0xc7e1,0xf88e, 0xe532,0x38a1, 0
+xa705,0x34c6
+  552 00000E38 32 C9 63 
+              F7 AA E4 
+              CF 38 D3 
+              A6 53 34         DCW              0xc932,0xf763, 0xe4aa,0x38cf, 0
+xa6d3,0x3453
+  553 00000E44 88 CA 39 
+              F6 23 E4 
+              FD 38 A4 
+              A6 DF 33         DCW              0xca88,0xf639, 0xe423,0x38fd, 0
+xa6a4,0x33df
+  554 00000E50 E2 CB 0F 
+              F5 9C E3 
+              2B 39 78 
+              A6 68 33         DCW              0xcbe2,0xf50f, 0xe39c,0x392b, 0
+xa678,0x3368
+  555 00000E5C 41 CD E6 
+              F3 15 E3 
+              58 39 50 
+              A6 EF 32         DCW              0xcd41,0xf3e6, 0xe315,0x3958, 0
+xa650,0x32ef
+  556 00000E68 A5 CE BF 
+              F2 8E E2 
+              84 39 2C 
+              A6 74 32         DCW              0xcea5,0xf2bf, 0xe28e,0x3984, 0
+xa62c,0x3274
+
+
+
+ARM Macro Assembler    Page 32 
+
+
+  557 00000E74 0C D0 98 
+              F1 08 E2 
+              B0 39 0B 
+              A6 F8 31         DCW              0xd00c,0xf198, 0xe208,0x39b0, 0
+xa60b,0x31f8
+  558 00000E80 78 D1 73 
+              F0 82 E1 
+              DB 39 ED 
+              A5 79 31         DCW              0xd178,0xf073, 0xe182,0x39db, 0
+xa5ed,0x3179
+  559 00000E8C E8 D2 4F 
+              EF FC E0 
+              06 3A D3 
+              A5 F9 30         DCW              0xd2e8,0xef4f, 0xe0fc,0x3a06, 0
+xa5d3,0x30f9
+  560 00000E98 5C D4 2D 
+              EE 77 E0 
+              30 3A BC 
+              A5 76 30         DCW              0xd45c,0xee2d, 0xe077,0x3a30, 0
+xa5bc,0x3076
+  561 00000EA4 D3 D5 0C 
+              ED F2 DF 
+              59 3A A9 
+              A5 F2 2F         DCW              0xd5d3,0xed0c, 0xdff2,0x3a59, 0
+xa5a9,0x2ff2
+  562 00000EB0 4E D7 ED 
+              EB 6D DF 
+              82 3A 99 
+              A5 6C 2F         DCW              0xd74e,0xebed, 0xdf6d,0x3a82, 0
+xa599,0x2f6c
+  563 00000EBC CD D8 CF 
+              EA E9 DE 
+              AB 3A 8D 
+              A5 E4 2E         DCW              0xd8cd,0xeacf, 0xdee9,0x3aab, 0
+xa58d,0x2ee4
+  564 00000EC8 4F DA B4 
+              E9 64 DE 
+              D3 3A 85 
+              A5 5A 2E         DCW              0xda4f,0xe9b4, 0xde64,0x3ad3, 0
+xa585,0x2e5a
+  565 00000ED4 D5 DB 9A 
+              E8 E1 DD 
+              FA 3A 7F 
+              A5 CF 2D         DCW              0xdbd5,0xe89a, 0xdde1,0x3afa, 0
+xa57f,0x2dcf
+  566 00000EE0 5D DD 82 
+              E7 5D DD 
+              21 3B 7E 
+              A5 41 2D         DCW              0xdd5d,0xe782, 0xdd5d,0x3b21, 0
+xa57e,0x2d41
+  567 00000EEC E9 DE 6D 
+              E6 DA DC 
+              47 3B 7F 
+              A5 B2 2C         DCW              0xdee9,0xe66d, 0xdcda,0x3b47, 0
+xa57f,0x2cb2
+  568 00000EF8 77 E0 59 
+              E5 57 DC 
+              6D 3B 85 
+              A5 21 2C         DCW              0xe077,0xe559, 0xdc57,0x3b6d, 0
+
+
+
+ARM Macro Assembler    Page 33 
+
+
+xa585,0x2c21
+  569 00000F04 08 E2 48 
+              E4 D5 DB 
+              92 3B 8D 
+              A5 8F 2B         DCW              0xe208,0xe448, 0xdbd5,0x3b92, 0
+xa58d,0x2b8f
+  570 00000F10 9C E3 3A 
+              E3 52 DB 
+              B6 3B 99 
+              A5 FB 2A         DCW              0xe39c,0xe33a, 0xdb52,0x3bb6, 0
+xa599,0x2afb
+  571 00000F1C 32 E5 2D 
+              E2 D1 DA 
+              DA 3B A9 
+              A5 65 2A         DCW              0xe532,0xe22d, 0xdad1,0x3bda, 0
+xa5a9,0x2a65
+  572 00000F28 CB E6 24 
+              E1 4F DA 
+              FD 3B BC 
+              A5 CE 29         DCW              0xe6cb,0xe124, 0xda4f,0x3bfd, 0
+xa5bc,0x29ce
+  573 00000F34 65 E8 1D 
+              E0 CE D9 
+              20 3C D3 
+              A5 35 29         DCW              0xe865,0xe01d, 0xd9ce,0x3c20, 0
+xa5d3,0x2935
+  574 00000F40 02 EA 19 
+              DF 4D D9 
+              42 3C ED 
+              A5 9A 28         DCW              0xea02,0xdf19, 0xd94d,0x3c42, 0
+xa5ed,0x289a
+  575 00000F4C A1 EB 18 
+              DE CD D8 
+              64 3C 0B 
+              A6 FE 27         DCW              0xeba1,0xde18, 0xd8cd,0x3c64, 0
+xa60b,0x27fe
+  576 00000F58 41 ED 19 
+              DD 4D D8 
+              85 3C 2C 
+              A6 60 27         DCW              0xed41,0xdd19, 0xd84d,0x3c85, 0
+xa62c,0x2760
+  577 00000F64 E3 EE 1E 
+              DC CD D7 
+              A5 3C 50 
+              A6 C1 26         DCW              0xeee3,0xdc1e, 0xd7cd,0x3ca5, 0
+xa650,0x26c1
+  578 00000F70 87 F0 26 
+              DB 4E D7 
+              C5 3C 78 
+              A6 20 26         DCW              0xf087,0xdb26, 0xd74e,0x3cc5, 0
+xa678,0x2620
+  579 00000F7C 2C F2 31 
+              DA CF D6 
+              E4 3C A4 
+              A6 7E 25         DCW              0xf22c,0xda31, 0xd6cf,0x3ce4, 0
+xa6a4,0x257e
+  580 00000F88 D2 F3 3F 
+              D9 51 D6 
+              03 3D D3 
+
+
+
+ARM Macro Assembler    Page 34 
+
+
+              A6 DA 24         DCW              0xf3d2,0xd93f, 0xd651,0x3d03, 0
+xa6d3,0x24da
+  581 00000F94 79 F5 51 
+              D8 D3 D5 
+              21 3D 05 
+              A7 35 24         DCW              0xf579,0xd851, 0xd5d3,0x3d21, 0
+xa705,0x2435
+  582 00000FA0 21 F7 66 
+              D7 56 D5 
+              3F 3D 3B 
+              A7 8E 23         DCW              0xf721,0xd766, 0xd556,0x3d3f, 0
+xa73b,0x238e
+  583 00000FAC CA F8 7F 
+              D6 D8 D4 
+              5B 3D 74 
+              A7 E7 22         DCW              0xf8ca,0xd67f, 0xd4d8,0x3d5b, 0
+xa774,0x22e7
+  584 00000FB8 73 FA 9B 
+              D5 5C D4 
+              78 3D B1 
+              A7 3D 22         DCW              0xfa73,0xd59b, 0xd45c,0x3d78, 0
+xa7b1,0x223d
+  585 00000FC4 1D FC BB 
+              D4 DF D3 
+              93 3D F1 
+              A7 93 21         DCW              0xfc1d,0xd4bb, 0xd3df,0x3d93, 0
+xa7f1,0x2193
+  586 00000FD0 C7 FD DF 
+              D3 63 D3 
+              AF 3D 34 
+              A8 E7 20         DCW              0xfdc7,0xd3df, 0xd363,0x3daf, 0
+xa834,0x20e7
+  587 00000FDC 72 FF 06 
+              D3 E8 D2 
+              C9 3D 7B 
+              A8 3A 20         DCW              0xff72,0xd306, 0xd2e8,0x3dc9, 0
+xa87b,0x203a
+  588 00000FE8 1C 01 31 
+              D2 6D D2 
+              E3 3D C5 
+              A8 8C 1F         DCW              0x011c,0xd231, 0xd26d,0x3de3, 0
+xa8c5,0x1f8c
+  589 00000FF4 C7 02 61 
+              D1 F2 D1 
+              FC 3D 12 
+              A9 DC 1E         DCW              0x02c7,0xd161, 0xd1f2,0x3dfc, 0
+xa912,0x1edc
+  590 00001000 71 04 94 
+              D0 78 D1 
+              15 3E 63 
+              A9 2B 1E         DCW              0x0471,0xd094, 0xd178,0x3e15, 0
+xa963,0x1e2b
+  591 0000100C 1B 06 CC 
+              CF FE D0 
+              2D 3E B7 
+              A9 79 1D         DCW              0x061b,0xcfcc, 0xd0fe,0x3e2d, 0
+xa9b7,0x1d79
+  592 00001018 C4 07 07 
+              CF 85 D0 
+
+
+
+ARM Macro Assembler    Page 35 
+
+
+              45 3E 0F 
+              AA C6 1C         DCW              0x07c4,0xcf07, 0xd085,0x3e45, 0
+xaa0f,0x1cc6
+  593 00001024 6D 09 47 
+              CE 0C D0 
+              5C 3E 6A 
+              AA 12 1C         DCW              0x096d,0xce47, 0xd00c,0x3e5c, 0
+xaa6a,0x1c12
+  594 00001030 14 0B 8C 
+              CD 94 CF 
+              72 3E C8 
+              AA 5D 1B         DCW              0x0b14,0xcd8c, 0xcf94,0x3e72, 0
+xaac8,0x1b5d
+  595 0000103C BB 0C D4 
+              CC 1C CF 
+              88 3E 29 
+              AB A7 1A         DCW              0x0cbb,0xccd4, 0xcf1c,0x3e88, 0
+xab29,0x1aa7
+  596 00001048 61 0E 21 
+              CC A5 CE 
+              9D 3E 8E 
+              AB EF 19         DCW              0x0e61,0xcc21, 0xcea5,0x3e9d, 0
+xab8e,0x19ef
+  597 00001054 05 10 73 
+              CB 2E CE 
+              B1 3E F6 
+              AB 37 19         DCW              0x1005,0xcb73, 0xce2e,0x3eb1, 0
+xabf6,0x1937
+  598 00001060 A8 11 C9 
+              CA B7 CD 
+              C5 3E 61 
+              AC 7E 18         DCW              0x11a8,0xcac9, 0xcdb7,0x3ec5, 0
+xac61,0x187e
+  599 0000106C 4A 13 24 
+              CA 41 CD 
+              D8 3E D0 
+              AC C4 17         DCW              0x134a,0xca24, 0xcd41,0x3ed8, 0
+xacd0,0x17c4
+  600 00001078 EA 14 83 
+              C9 CC CC 
+              EB 3E 41 
+              AD 09 17         DCW              0x14ea,0xc983, 0xcccc,0x3eeb, 0
+xad41,0x1709
+  601 00001084 88 16 E8 
+              C8 57 CC 
+              FD 3E B6 
+              AD 4C 16         DCW              0x1688,0xc8e8, 0xcc57,0x3efd, 0
+xadb6,0x164c
+  602 00001090 24 18 50 
+              C8 E2 CB 
+              0F 3F 2E 
+              AE 90 15         DCW              0x1824,0xc850, 0xcbe2,0x3f0f, 0
+xae2e,0x1590
+  603 0000109C BE 19 BE 
+              C7 6E CB 
+              20 3F A9 
+              AE D2 14         DCW              0x19be,0xc7be, 0xcb6e,0x3f20, 0
+xaea9,0x14d2
+  604 000010A8 56 1B 31 
+
+
+
+ARM Macro Assembler    Page 36 
+
+
+              C7 FB CA 
+              30 3F 28 
+              AF 13 14         DCW              0x1b56,0xc731, 0xcafb,0x3f30, 0
+xaf28,0x1413
+  605 000010B4 EB 1C A8 
+              C6 88 CA 
+              40 3F A9 
+              AF 54 13         DCW              0x1ceb,0xc6a8, 0xca88,0x3f40, 0
+xafa9,0x1354
+  606 000010C0 7E 1E 25 
+              C6 15 CA 
+              4F 3F 2D 
+              B0 94 12         DCW              0x1e7e,0xc625, 0xca15,0x3f4f, 0
+xb02d,0x1294
+  607 000010CC 0E 20 A7 
+              C5 A3 C9 
+              5D 3F B5 
+              B0 D3 11         DCW              0x200e,0xc5a7, 0xc9a3,0x3f5d, 0
+xb0b5,0x11d3
+  608 000010D8 9C 21 2D 
+              C5 32 C9 
+              6B 3F 40 
+              B1 12 11         DCW              0x219c,0xc52d, 0xc932,0x3f6b, 0
+xb140,0x1112
+  609 000010E4 26 23 B9 
+              C4 C1 C8 
+              78 3F CD 
+              B1 50 10         DCW              0x2326,0xc4b9, 0xc8c1,0x3f78, 0
+xb1cd,0x1050
+  610 000010F0 AE 24 4A 
+              C4 51 C8 
+              85 3F 5E 
+              B2 8D 0F         DCW              0x24ae,0xc44a, 0xc851,0x3f85, 0
+xb25e,0x0f8d
+  611 000010FC 32 26 E0 
+              C3 E1 C7 
+              91 3F F2 
+              B2 CA 0E         DCW              0x2632,0xc3e0, 0xc7e1,0x3f91, 0
+xb2f2,0x0eca
+  612 00001108 B3 27 7B 
+              C3 72 C7 
+              9C 3F 88 
+              B3 06 0E         DCW              0x27b3,0xc37b, 0xc772,0x3f9c, 0
+xb388,0x0e06
+  613 00001114 31 29 1C 
+              C3 03 C7 
+              A7 3F 22 
+              B4 41 0D         DCW              0x2931,0xc31c, 0xc703,0x3fa7, 0
+xb422,0x0d41
+  614 00001120 AA 2A C1 
+              C2 95 C6 
+              B1 3F BE 
+              B4 7C 0C         DCW              0x2aaa,0xc2c1, 0xc695,0x3fb1, 0
+xb4be,0x0c7c
+  615 0000112C 21 2C 6D 
+              C2 27 C6 
+              BB 3F 5E 
+              B5 B7 0B         DCW              0x2c21,0xc26d, 0xc627,0x3fbb, 0
+xb55e,0x0bb7
+
+
+
+ARM Macro Assembler    Page 37 
+
+
+  616 00001138 93 2D 1D 
+              C2 BA C5 
+              C4 3F 00 
+              B6 F1 0A         DCW              0x2d93,0xc21d, 0xc5ba,0x3fc4, 0
+xb600,0x0af1
+  617 00001144 02 2F D3 
+              C1 4E C5 
+              CC 3F A5 
+              B6 2B 0A         DCW              0x2f02,0xc1d3, 0xc54e,0x3fcc, 0
+xb6a5,0x0a2b
+  618 00001150 6C 30 8E 
+              C1 E2 C4 
+              D4 3F 4D 
+              B7 64 09         DCW              0x306c,0xc18e, 0xc4e2,0x3fd4, 0
+xb74d,0x0964
+  619 0000115C D2 31 4F 
+              C1 76 C4 
+              DB 3F F8 
+              B7 9D 08         DCW              0x31d2,0xc14f, 0xc476,0x3fdb, 0
+xb7f8,0x089d
+  620 00001168 34 33 15 
+              C1 0C C4 
+              E1 3F A6 
+              B8 D6 07         DCW              0x3334,0xc115, 0xc40c,0x3fe1, 0
+xb8a6,0x07d6
+  621 00001174 92 34 E0 
+              C0 A1 C3 
+              E7 3F 56 
+              B9 0E 07         DCW              0x3492,0xc0e0, 0xc3a1,0x3fe7, 0
+xb956,0x070e
+  622 00001180 EB 35 B1 
+              C0 38 C3 
+              EC 3F 09 
+              BA 46 06         DCW              0x35eb,0xc0b1, 0xc338,0x3fec, 0
+xba09,0x0646
+  623 0000118C 3F 37 88 
+              C0 CF C2 
+              F1 3F BF 
+              BA 7E 05         DCW              0x373f,0xc088, 0xc2cf,0x3ff1, 0
+xbabf,0x057e
+  624 00001198 8E 38 64 
+              C0 66 C2 
+              F5 3F 77 
+              BB B5 04         DCW              0x388e,0xc064, 0xc266,0x3ff5, 0
+xbb77,0x04b5
+  625 000011A4 D9 39 45 
+              C0 FE C1 
+              F8 3F 32 
+              BC ED 03         DCW              0x39d9,0xc045, 0xc1fe,0x3ff8, 0
+xbc32,0x03ed
+  626 000011B0 1E 3B 2C 
+              C0 97 C1 
+              FB 3F F0 
+              BC 24 03         DCW              0x3b1e,0xc02c, 0xc197,0x3ffb, 0
+xbcf0,0x0324
+  627 000011BC 5F 3C 19 
+              C0 30 C1 
+              FD 3F B0 
+              BD 5B 02         DCW              0x3c5f,0xc019, 0xc130,0x3ffd, 0
+
+
+
+ARM Macro Assembler    Page 38 
+
+
+xbdb0,0x025b
+  628 000011C8 9A 3D 0B 
+              C0 CA C0 
+              FF 3F 73 
+              BE 92 01         DCW              0x3d9a,0xc00b, 0xc0ca,0x3fff, 0
+xbe73,0x0192
+  629 000011D4 D0 3E 03 
+              C0 65 C0 
+              00 40 38 
+              BF C9 00         DCW              0x3ed0,0xc003, 0xc065,0x4000, 0
+xbf38,0x00c9
+  630 000011E0         
+  631 000011E0                 END
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
+interwork --depend=.\objects\cr4_fft_1024_stm32.d -o.\objects\cr4_fft_1024_stm3
+2.o -IE:\SoftLib\Keil_Arm_pack\Keil\STM32F4xx_DFP\2.17.1\Drivers\CMSIS\Device\S
+T\STM32F4xx\Include --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERS
+ION SETA 538" --predefine="STM32F407xx SETA 1" --list=.\listings\cr4_fft_1024_s
+tm32.lst ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 20 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      None
+Comment: .text unused
+TableFFT_V7 000001F0
+
+Symbol: TableFFT_V7
+   Definitions
+      At line 285 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      At line 250 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+Comment: TableFFT_V7 used once
+butterloop_v7 000000D0
+
+Symbol: butterloop_v7
+   Definitions
+      At line 263 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      At line 266 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+Comment: butterloop_v7 used once
+cr4_fft_1024_stm32 00000000
+
+Symbol: cr4_fft_1024_stm32
+   Definitions
+      At line 219 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      At line 22 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+Comment: cr4_fft_1024_stm32 used once
+grouploop_v7 000000CC
+
+Symbol: grouploop_v7
+   Definitions
+      At line 260 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      At line 274 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+Comment: grouploop_v7 used once
+passloop_v7 000000C0
+
+Symbol: passloop_v7
+   Definitions
+      At line 254 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      At line 279 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+Comment: passloop_v7 used once
+preloop_v7 0000000C
+
+Symbol: preloop_v7
+   Definitions
+      At line 226 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      At line 232 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+Comment: preloop_v7 used once
+7 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Absolute symbols
+
+NPT 00000400
+
+Symbol: NPT
+   Definitions
+      At line 46 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      At line 136 in macro ù©	OPT
+      at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+      At line 139 in macro ù©	OPT
+      at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+      At line 142 in macro ù©	OPT
+      at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+      At line 145 in macro ù©	OPT
+      at line 228 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+
+1 symbol
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+External symbols
+
+TableFFT 00000000
+
+Symbol: TableFFT
+   Definitions
+      At line 23 in file ..\..\User\fft\src\asm\arm\cr4_fft_1024_stm32.s
+   Uses
+      None
+Comment: TableFFT unused
+1 symbol
+362 symbols in table

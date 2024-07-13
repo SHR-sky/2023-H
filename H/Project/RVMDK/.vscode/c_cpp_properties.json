@@ -3,16 +3,14 @@
         {
             "name": "Control",
             "includePath": [
-                "f:\\Open_Repository\\2023-H\\H\\Libraries\\CMSIS\\Include",
-                "f:\\Open_Repository\\2023-H\\H\\Libraries\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
-                "f:\\Open_Repository\\2023-H\\H\\Libraries\\STM32F4xx_StdPeriph_Driver\\inc",
-                "f:\\Open_Repository\\2023-H\\H\\User",
-                "f:\\Open_Repository\\2023-H\\H\\Hardware",
-                "f:\\Open_Repository\\2023-H\\H\\User\\fft\\inc",
-                "f:\\Open_Repository\\2023-H\\H\\User\\fft\\src\\asm\\arm",
-                "f:\\Open_Repository\\2023-H\\H\\Libraries\\CMSIS\\Device\\ST\\STM32F4xx\\Source\\Templates\\arm",
-                "f:\\Open_Repository\\2023-H\\H\\Libraries\\STM32F4xx_StdPeriph_Driver\\src",
-                "f:\\Open_Repository\\2023-H\\H\\Libraries\\CMSIS\\Device\\ST\\STM32F4xx\\Source\\Templates"
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\Libraries\\CMSIS\\Include",
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\Libraries\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\Libraries\\STM32F4xx_StdPeriph_Driver\\inc",
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\User",
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\Hardware",
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\Libraries\\CMSIS\\Device\\ST\\STM32F4xx\\Source\\Templates\\arm",
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\Libraries\\STM32F4xx_StdPeriph_Driver\\src",
+                "f:\\STI\\电赛\\2023\\2023年H题\\H\\Libraries\\CMSIS\\Device\\ST\\STM32F4xx\\Source\\Templates"
             ],
             "defines": [
                 "USE_STDPERIPH_DRIVER",

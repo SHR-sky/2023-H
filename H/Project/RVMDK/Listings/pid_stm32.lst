@@ -1,0 +1,188 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;/******************** (C) COPYRIGHT 2009  STMicroelectr
+                       onics ********************
+    2 00000000         ;* File Name          : PID_stm32.s
+    3 00000000         ;* Author             : MCD Application Team
+    4 00000000         ;* Version            : V2.0.0
+    5 00000000         ;* Date               : 04/27/2009
+    6 00000000         ;* Description        : This source file contains assemb
+                       ly optimized source code
+    7 00000000         ;*                      of a PID controller.
+    8 00000000         ;*******************************************************
+                       *************************
+    9 00000000         ;* THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS 
+                       AT PROVIDING CUSTOMERS
+   10 00000000         ;* WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN O
+                       RDER FOR THEM TO SAVE TIME.
+   11 00000000         ;* AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIA
+                       BLE FOR ANY DIRECT,
+   12 00000000         ;* INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY
+                        CLAIMS ARISING FROM THE
+   13 00000000         ;* CONTENT OF SUCH SOFTWARE AND/OR THE USE MADE BY CUSTO
+                       MERS OF THE CODING
+   14 00000000         ;* INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR
+                        PRODUCTS.
+   15 00000000         ;*******************************************************
+                       ************************/
+   16 00000000         
+   17 00000000                 THUMB
+   18 00000000                 REQUIRE8
+   19 00000000                 PRESERVE8
+   20 00000000         
+   21 00000000                 AREA             |.text|, CODE, READONLY, ALIGN=
+2
+   22 00000000         
+   23 00000000                 EXPORT           PID_stm32
+   24 00000000                 IMPORT           IntTerm
+   25 00000000                 IMPORT           PrevError
+   26 00000000         
+   27 00000000        0 
+                       Err     RN               R0          ; 1st function inpu
+                                                            t: Error  
+   28 00000000        1 
+                       Coeff   RN               R1          ; 2nd fct input: Ad
+                                                            dress of coefficien
+                                                            t table 
+   29 00000000        1 
+                       Kd      RN               R1
+   30 00000000        2 
+                       Ki      RN               R2
+   31 00000000        3 
+                       Kp      RN               R3
+   32 00000000         
+   33 00000000        4 
+                       Out     RN               R4
+   34 00000000        2 
+                       Result  RN               R2
+   35 00000000        5 
+                       Integ   RN               R5
+   36 00000000        C 
+                       PrevErr RN               R12
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+   37 00000000         
+   38 00000000         ;/******************************************************
+                       *************************
+   39 00000000         ;* Function Name  : DoPID
+   40 00000000         ;* Description    : PID in ASM, Error computed outside t
+                       he routine
+   41 00000000         ;* Input          : Error: difference between reference 
+                       and measured value
+   42 00000000         ;*                  Coeff: pointer to the coefficient ta
+                       ble
+   43 00000000         ;* Output         : None
+   44 00000000         ;* Return         : PID output (command)
+   45 00000000         ;*******************************************************
+                       ************************/
+   46 00000000         PID_stm32
+   47 00000000         
+   48 00000000 E92D 0230       PUSH             {R4, R5, R9}
+   49 00000004         
+   50 00000004 F8DF C038       LDR              R12, =IntTerm
+   51 00000008 F8DF 9038       LDR              R9, =PrevError
+   52 0000000C         
+   53 0000000C 880B            LDRH             Kp, [Coeff, #0] ; Load Kp 
+   54 0000000E 884A            LDRH             Ki, [Coeff, #2] ; Load Ki 
+   55 00000010 8889            LDRH             Kd, [Coeff, #4] ; Load Kd and d
+                                                            estroy Coeff
+   56 00000012 F8BC 5000       LDRH             Integ, [R12, #0] ; Last Integra
+                                                            l Term 
+   57 00000016 F8B9 C000       LDRH             PrevErr, [R9, #0] 
+                                                            ; Previous Error 
+   58 0000001A         
+   59 0000001A FB02 5500       MLA              Integ, Ki, Err, Integ ; IntTerm
+                                                             += Ki*error 
+   60 0000001E FB03 5400       MLA              Out, Kp, Err, Integ ; Output = 
+                                                            (Kp * error) + InTe
+                                                            rm 
+   61 00000022 EBB0 0C0C       SUBS             PrevErr, Err, PrevErr ; PrevErr
+                                                             now holds DeltaErr
+                                                            or = Error - PrevEr
+                                                            ror 
+   62 00000026 FB01 420C       MLA              Result, Kd, PrevErr, Out ; Outp
+                                                            ut += Kd * DeltaErr
+                                                            or 
+   63 0000002A         
+   64 0000002A F8DF C014       LDR              R12, =IntTerm
+   65 0000002E F8AC 5000       STRH             Integ, [R12, #0] ; Write back I
+                                                            nTerm 
+   66 00000032 F8A9 0000       STRH             Err, [R9, #0] ; Write back Prev
+                                                            Error 
+   67 00000036         
+   68 00000036 4610            MOV              R0, Result
+   69 00000038 B280            UXTH             R0, R0
+   70 0000003A E8BD 0230       POP              {R4, R5, R9}
+   71 0000003E 4770            BX               LR
+   72 00000040         
+   73 00000040                 END
+              00000000 
+              00000000 
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
+interwork --depend=.\objects\pid_stm32.d -o.\objects\pid_stm32.o -IE:\SoftLib\K
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+eil_Arm_pack\Keil\STM32F4xx_DFP\2.17.1\Drivers\CMSIS\Device\ST\STM32F4xx\Includ
+e --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERSION SETA 538" --pr
+edefine="STM32F407xx SETA 1" --list=.\listings\pid_stm32.lst ..\..\User\fft\src
+\asm\arm\PID_stm32.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 21 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+   Uses
+      None
+Comment: .text unused
+PID_stm32 00000000
+
+Symbol: PID_stm32
+   Definitions
+      At line 46 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+   Uses
+      At line 23 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+Comment: PID_stm32 used once
+2 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+External symbols
+
+IntTerm 00000000
+
+Symbol: IntTerm
+   Definitions
+      At line 24 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+   Uses
+      At line 50 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+      At line 64 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+
+PrevError 00000000
+
+Symbol: PrevError
+   Definitions
+      At line 25 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+   Uses
+      At line 51 in file ..\..\User\fft\src\asm\arm\PID_stm32.s
+Comment: PrevError used once
+2 symbols
+349 symbols in table

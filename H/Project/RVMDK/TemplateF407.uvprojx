@@ -799,9 +799,29 @@
               <FilePath>..\..\Hardware\TIM.h</FilePath>
             </File>
             <File>
+              <FileName>Delay.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Hardware\Delay.c</FilePath>
+            </File>
+            <File>
+              <FileName>Delay.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Hardware\Delay.h</FilePath>
+            </File>
+            <File>
               <FileName>sys.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\Hardware\sys.h</FilePath>
+            </File>
+            <File>
+              <FileName>mySPI.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Hardware\mySPI.c</FilePath>
+            </File>
+            <File>
+              <FileName>mySPI.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Hardware\mySPI.h</FilePath>
             </File>
             <File>
               <FileName>DAC.c</FileName>

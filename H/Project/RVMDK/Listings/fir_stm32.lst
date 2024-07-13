@@ -1,0 +1,270 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;/******************** (C) COPYRIGHT 2009  STMicroelectr
+                       onics ********************
+    2 00000000         ;* File Name          : fir_stm32.s
+    3 00000000         ;* Author             : MCD Application Team
+    4 00000000         ;* Version            : V2.0.0
+    5 00000000         ;* Date               : 04/27/2009
+    6 00000000         ;* Description        : FIR filter optimized assembly co
+                       de for Cortex-M3
+    7 00000000         ;*******************************************************
+                       *************************
+    8 00000000         ;* THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS 
+                       AT PROVIDING CUSTOMERS
+    9 00000000         ;* WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN O
+                       RDER FOR THEM TO SAVE TIME.
+   10 00000000         ;* AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIA
+                       BLE FOR ANY DIRECT,
+   11 00000000         ;* INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY
+                        CLAIMS ARISING FROM THE
+   12 00000000         ;* CONTENT OF SUCH SOFTWARE AND/OR THE USE MADE BY CUSTO
+                       MERS OF THE CODING
+   13 00000000         ;* INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR
+                        PRODUCTS.
+   14 00000000         ;*******************************************************
+                       ************************/
+   15 00000000         ;/*;----------------------------------------------------
+                       -------------------------
+   16 00000000         ; This software module is adopted from the book entitled
+                       ,
+   17 00000000         ; "ARM System Developers Guide" published by Elsevier In
+                       c in 2004
+   18 00000000         ; and the module is presented "as is with no warranty".
+   19 00000000         ; for Evaluation purposes to support Cortex-M3 (STM32)
+   20 00000000         ; Code compatible with IAR/ARM assembly.
+   21 00000000         ;-------------------------------------------------------
+                       --------------------- */
+   22 00000000         
+   23 00000000                 THUMB
+   24 00000000                 REQUIRE8
+   25 00000000                 PRESERVE8
+   26 00000000         
+   27 00000000                 AREA             |.text|, CODE, READONLY, ALIGN=
+2
+   28 00000000         
+   29 00000000                 EXPORT           fir_16by16_stm32
+   30 00000000         
+   31 00000000         
+   32 00000000        0 
+                       a       RN               R0          ; Assigned to outpu
+                                                            t samples a[]     
+   33 00000000        1 
+                       x       RN               R1          ; Assigned to input
+                                                             samples x[]      
+   34 00000000         
+   35 00000000        2 
+                       c       RN               R2          ; Assigned to coeff
+                                                            icients c[]       
+   36 00000000         
+   37 00000000        3 
+                       N       RN               R3          ; Assigned to numbe
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+                                                            r of outputs (a mul
+                                                            tiple of 4)    
+   38 00000000        4 
+                       M       RN               R4          ; Assigned number o
+                                                            f coefficients (a m
+                                                            ultiple of 4)  
+   39 00000000         
+   40 00000000        3 
+                       c_0     RN               R3          ; coefficient regis
+                                                            ters
+   41 00000000        C 
+                       c_1     RN               R12
+   42 00000000        3 
+                       c_2     RN               R3
+   43 00000000        C 
+                       c_3     RN               R12
+   44 00000000         
+   45 00000000        5 
+                       x_0     RN               R5          ; data registers
+   46 00000000        6 
+                       x_1     RN               R6
+   47 00000000        7 
+                       x_2     RN               R7
+   48 00000000        E 
+                       x_3     RN               R14
+   49 00000000        5 
+                       x_4     RN               R5
+   50 00000000        6 
+                       x_5     RN               R6
+   51 00000000        7 
+                       x_6     RN               R7
+   52 00000000        E 
+                       x_7     RN               R14
+   53 00000000         
+   54 00000000        8 
+                       a_0     RN               R8          ; output accumulato
+                                                            rs
+   55 00000000        9 
+                       a_1     RN               R9
+   56 00000000        A 
+                       a_2     RN               R10
+   57 00000000        B 
+                       a_3     RN               R11
+   58 00000000         
+   59 00000000         ;/******************************************************
+                       *************************
+   60 00000000         ;* Function Name  : fir_16by16_stm32
+   61 00000000         ;* Description    : FIR 16-bit filter
+   62 00000000         ;* Input          : - a: Output array .
+   63 00000000         ;*                  - x: Input array 
+   64 00000000         ;*                  - c: pointer to the coefficients str
+                       ucture
+   65 00000000         ;*                  - N: the number of output samples
+   66 00000000         ;* Output         : None
+   67 00000000         ;* Return         : None
+   68 00000000         ;*******************************************************
+                       ************************/
+   69 00000000         ;void fir_16by16_stm32(void *a, void *x, COEFS *c, u32 N
+                       ) 
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+   70 00000000         
+   71 00000000         fir_16by16_stm32
+   72 00000000 E92D 4FF0       STMDB            sp!, {r4-r11, lr} 
+                                                            ; Save context
+   73 00000004 CA14            LDMIA            c, {c, M}   ; Get base address 
+                                                            and number of coeff
+                                                            icients
+   74 00000006         next_sample
+   75 00000006 B418            STMFD            sp!, {N, M}
+   76 00000008 F931 5B02       LDRSH            x_0, [x], #2
+   77 0000000C F931 6B02       LDRSH            x_1, [x], #2
+   78 00000010 F931 7B02       LDRSH            x_2, [x], #2
+   79 00000014 F931 EB02       LDRSH            x_3, [x], #2
+   80 00000018 F04F 0800       MOV              a_0 , #0
+   81 0000001C F04F 0900       MOV              a_1, #0
+   82 00000020 F04F 0A00       MOV              a_2, #0
+   83 00000024 F04F 0B00       MOV              a_3, #0
+   84 00000028         next_tap
+   85 00000028         ; perform next block of 4x4=16 taps
+   86 00000028 F932 3B02       LDRSH            c_0, [c], #2 ; Load c_0
+   87 0000002C F932 CB02       LDRSH            c_1, [c], #2 ; Load c_1
+   88 00000030 1F24            SUBS             M, M, #4
+   89 00000032         
+   90 00000032 FB05 8803       MLA              a_0, x_0, c_0, a_0 
+                                                            ; a_0 += c_0 * x_0
+   91 00000036 F931 5B02       LDRSH            x_4, [x], #2 ; Load x_4 (x_0 no
+                                                             more used)
+   92 0000003A FB06 9903       MLA              a_1, x_1, c_0, a_1 
+                                                            ; a_1 += c_0 * x_1
+   93 0000003E FB07 AA03       MLA              a_2, x_2, c_0, a_2 
+                                                            ; a_2 += c_0 * x_2
+   94 00000042 FB0E BB03       MLA              a_3, x_3, c_0, a_3 
+                                                            ; a_3 += c_0 * x_3
+   95 00000046         
+   96 00000046 F932 3B02       LDRSH            c_2, [c], #2 ; Load c_2
+   97 0000004A FB06 880C       MLA              a_0, x_1, c_1, a_0 
+                                                            ; a_0 += c_1 * x_1
+   98 0000004E F931 6B02       LDRSH            x_5, [x], #2 ; Load x_5 (x_1 no
+                                                             more used)
+   99 00000052 FB07 990C       MLA              a_1, x_2, c_1, a_1 
+                                                            ; a_1 += c_1 * x_2
+  100 00000056 FB0E AA0C       MLA              a_2, x_3, c_1, a_2 
+                                                            ; a_2 += c_1 * x_3
+  101 0000005A FB05 BB0C       MLA              a_3, x_4, c_1, a_3 
+                                                            ; a_3 += c_1 * x_4
+  102 0000005E         
+  103 0000005E F932 CB02       LDRSH            c_3, [c], #2 ; Load c_3 (c_1 no
+                                                             more used)
+  104 00000062 FB07 8803       MLA              a_0, x_2, c_2, a_0 
+                                                            ; a_0 += c_2 * x_2
+  105 00000066 F931 7B02       LDRSH            x_6, [x], #2 ; Load x_6
+  106 0000006A FB0E 9903       MLA              a_1, x_3, c_2, a_1 
+                                                            ; a_1 += c_2 * x_3
+  107 0000006E FB05 AA03       MLA              a_2, x_4, c_2, a_2 
+                                                            ; a_2 += c_2 * x_4
+  108 00000072 FB06 BB03       MLA              a_3, x_5, c_2, a_3 
+                                                            ; a_3 += c_2 * x_5
+  109 00000076         
+  110 00000076 FB0E 880C       MLA              a_0, x_3, c_3, a_0 
+
+
+
+ARM Macro Assembler    Page 4 
+
+
+                                                            ; a_0 += c_3 * x_3
+  111 0000007A F931 EB02       LDRSH            x_7, [x], #2 ; Load x_7
+  112 0000007E FB05 990C       MLA              a_1, x_4, c_3, a_1 
+                                                            ; a_1 += c_3 * x_4
+  113 00000082 FB06 AA0C       MLA              a_2, x_5, c_3, a_2 
+                                                            ; a_2 += c_3 * x_5
+  114 00000086 FB07 BB0C       MLA              a_3, x_6, c_3, a_3 
+                                                            ; a_3 += c_3 * x_6
+  115 0000008A         
+  116 0000008A DCCD            BGT              next_tap
+  117 0000008C         
+  118 0000008C BC18            LDMFD            sp!, {N, M}
+  119 0000008E E8A0 0F00       STMIA            a!, {a_0, a_1, a_2, a_3}
+  120 00000092 EBA2 0244       SUB              c, c, M, LSL#1 ; restore coeffi
+                                                            cient pointer
+  121 00000096 EBA1 0144       SUB              x, x, M, LSL#1 ; advance data p
+                                                            ointer
+  122 0000009A 1F1B            SUBS             N, N, #4    ; filtered four sam
+                                                            ples
+  123 0000009C DCB3            BGT              next_sample
+  124 0000009E         
+  125 0000009E E8BD 8FF0       LDMIA            sp!, {r4-r11, pc}
+  126 000000A2                 END
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
+interwork --depend=.\objects\fir_stm32.d -o.\objects\fir_stm32.o -IE:\SoftLib\K
+eil_Arm_pack\Keil\STM32F4xx_DFP\2.17.1\Drivers\CMSIS\Device\ST\STM32F4xx\Includ
+e --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERSION SETA 538" --pr
+edefine="STM32F407xx SETA 1" --list=.\listings\fir_stm32.lst ..\..\User\fft\src
+\asm\arm\fir_stm32.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 27 in file ..\..\User\fft\src\asm\arm\fir_stm32.s
+   Uses
+      None
+Comment: .text unused
+fir_16by16_stm32 00000000
+
+Symbol: fir_16by16_stm32
+   Definitions
+      At line 71 in file ..\..\User\fft\src\asm\arm\fir_stm32.s
+   Uses
+      At line 29 in file ..\..\User\fft\src\asm\arm\fir_stm32.s
+Comment: fir_16by16_stm32 used once
+next_sample 00000006
+
+Symbol: next_sample
+   Definitions
+      At line 74 in file ..\..\User\fft\src\asm\arm\fir_stm32.s
+   Uses
+      At line 123 in file ..\..\User\fft\src\asm\arm\fir_stm32.s
+Comment: next_sample used once
+next_tap 00000028
+
+Symbol: next_tap
+   Definitions
+      At line 84 in file ..\..\User\fft\src\asm\arm\fir_stm32.s
+   Uses
+      At line 116 in file ..\..\User\fft\src\asm\arm\fir_stm32.s
+Comment: next_tap used once
+4 symbols
+359 symbols in table

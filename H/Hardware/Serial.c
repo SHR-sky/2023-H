@@ -5,7 +5,7 @@
 void Serial_Init(void)
 {
 
-	// USART2_TX PA2 USART2_RX PD3
+	// USART2_TX PA2 USART2_RX PA3
 	// USART2_CTS PD3 USART2_RTS PD4
 
 	/*open the clock*/
@@ -174,30 +174,36 @@ void USART2_IRQHandler(void)
 	if (USART_GetFlagStatus(USART2, USART_FLAG_RXNE) == SET)
 	{
 		Res = USART_ReceiveData(USART2);
+		
 		if(Res==0x1)
 		{
 			flag = 1;
 		}
 		else 
 		{
+			//NVIC_SystemReset();
 			mode_flag = 1;
+			change_phi = Res;
+			/*
 			if(Res == 0x2)
 			{
-				change_phi += 3;
+				change_phi = 3;
 			}
 			else if(Res == 0x3)
 			{
-				change_phi -= 3;
+				change_phi = -3;
 			}
 			else if(Res == 0x4)
 			{
-				change_phi += 1;
+				change_phi = 1;
 			}
 			else
 			{
-				change_phi -= 1;
+				change_phi = -1;
 			}
+			*/
 		}
+		
 		USART_ClearITPendingBit(USART2, USART_IT_RXNE);
 		// Write you code
 	}

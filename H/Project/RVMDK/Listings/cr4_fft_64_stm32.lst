@@ -1,0 +1,751 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;******************** (C) COPYRIGHT 2009  STMicroelectro
+                       nics ********************
+    2 00000000         ;* File Name          : cr4_fft_64_stm32.s
+    3 00000000         ;* Author             : MCD Application Team
+    4 00000000         ;* Version            : V2.0.0
+    5 00000000         ;* Date               : 04/27/2009
+    6 00000000         ;* Description        : Optimized 64-point radix-4 compl
+                       ex FFT for Cortex-M3
+    7 00000000         ;*******************************************************
+                       *************************
+    8 00000000         ;* THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS 
+                       AT PROVIDING CUSTOMERS
+    9 00000000         ;* WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN O
+                       RDER FOR THEM TO SAVE TIME.
+   10 00000000         ;* AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIA
+                       BLE FOR ANY DIRECT,
+   11 00000000         ;* INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY
+                        CLAIMS ARISING FROM THE
+   12 00000000         ;* CONTENT OF SUCH SOFTWARE AND/OR THE USE MADE BY CUSTO
+                       MERS OF THE CODING
+   13 00000000         ;* INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR
+                        PRODUCTS.
+   14 00000000         ;*******************************************************
+                       ************************/
+   15 00000000         
+   16 00000000                 THUMB
+   17 00000000                 REQUIRE8
+   18 00000000                 PRESERVE8
+   19 00000000         
+   20 00000000                 AREA             |.text|, CODE, READONLY, ALIGN=
+2
+   21 00000000         
+   22 00000000                 EXPORT           cr4_fft_64_stm32
+   23 00000000                 EXTERN           TableFFT
+   24 00000000         
+   25 00000000         
+   26 00000000        0 
+                       pssK    RN               R0
+   27 00000000        0 
+                       pssOUT  RN               R0
+   28 00000000        1 
+                       pssX    RN               R1
+   29 00000000        1 
+                       pssIN   RN               R1
+   30 00000000        2 
+                       butternbr
+                               RN               R2
+   31 00000000        2 
+                       Nbin    RN               R2
+   32 00000000        3 
+                       index   RN               R3
+   33 00000000        4 
+                       Ar      RN               R4
+   34 00000000        5 
+                       Ai      RN               R5
+   35 00000000        6 
+                       Br      RN               R6
+   36 00000000        7 
+                       Bi      RN               R7
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+   37 00000000        8 
+                       Cr      RN               R8
+   38 00000000        9 
+                       Ci      RN               R9
+   39 00000000        A 
+                       Dr      RN               R10
+   40 00000000        B 
+                       Di      RN               R11
+   41 00000000        C 
+                       cntrbitrev
+                               RN               R12
+   42 00000000        C 
+                       tmp     RN               R12
+   43 00000000        E 
+                       pssIN2  RN               R14
+   44 00000000        E 
+                       tmp2    RN               R14
+   45 00000000         
+   46 00000000 00000040 
+                       NPT     EQU              64
+   47 00000000         
+   48 00000000         ;----------------------------- MACROS ------------------
+                       ----------------------
+   49 00000000         
+   50 00000000                 MACRO
+   51 00000000                 DEC              $reg
+   52 00000000                 SUB              $reg,$reg,#1
+   53 00000000                 MEND
+   54 00000000         
+   55 00000000                 MACRO
+   56 00000000                 INC              $reg
+   57 00000000                 ADD              $reg,$reg,#1
+   58 00000000                 MEND
+   59 00000000         
+   60 00000000         
+   61 00000000                 MACRO
+   62 00000000                 QUAD             $reg
+   63 00000000                 MOV              $reg,$reg,LSL#2
+   64 00000000                 MEND
+   65 00000000         
+   66 00000000         ;sXi = *(PssX+1); sXr = *PssX; PssX += offset; PssX= R1
+   67 00000000         
+   68 00000000                 MACRO
+   69 00000000                 LDR2Q            $sXr,$sXi, $PssX, $offset
+   70 00000000                 LDRSH            $sXi, [$PssX, #2]
+   71 00000000                 LDRSH            $sXr, [$PssX]
+   72 00000000                 ADD              $PssX, $PssX, $offset
+   73 00000000                 MEND
+   74 00000000         
+   75 00000000         ;!! Same macro, to be used when passing negative offset 
+                       value !!
+   76 00000000                 MACRO
+   77 00000000                 LDR2Qm           $sXr, $sXi, $PssX, $offset
+   78 00000000                 LDRSH            $sXi, [$PssX, #2]
+   79 00000000                 LDRSH            $sXr, [$PssX]
+   80 00000000                 SUB              $PssX, $PssX, $offset
+   81 00000000                 MEND
+   82 00000000         
+   83 00000000         ;(PssX+1)= sXi;  *PssX=sXr; PssX += offset;
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+   84 00000000                 MACRO
+   85 00000000                 STR2Q            $sXr, $sXi, $PssX, $offset
+   86 00000000                 STRH             $sXi, [$PssX, #2]
+   87 00000000                 STRH             $sXr, [$PssX]
+   88 00000000                 ADD              $PssX, $PssX, $offset
+   89 00000000                 MEND
+   90 00000000         
+   91 00000000         ; YY = Cplx_conjugate_mul(Y,K)
+   92 00000000         ;  Y = YYr + i*YYi
+   93 00000000         ; use the following trick
+   94 00000000         ;  K = (Kr-Ki) + i*Ki
+   95 00000000                 MACRO
+   96 00000000                 CXMUL_V7         $YYr, $YYi, $Yr, $Yi, $Kr, $Ki,
+$tmp,$tmp2
+   97 00000000                 SUB              $tmp2, $Yi, $Yr ; sYi-sYr
+   98 00000000                 MUL              $tmp, $tmp2, $Ki 
+                                                            ; (sYi-sYr)*sKi
+   99 00000000                 ADD              $tmp2, $Kr, $Ki, LSL#1 
+                                                            ; (sKr+sKi)
+  100 00000000                 MLA              $YYi, $Yi, $Kr, $tmp ; lYYi = s
+                                                            Yi*sKr-sYr*sKi
+  101 00000000                 MLA              $YYr, $Yr, $tmp2, $tmp ; lYYr =
+                                                             sYr*sKr+sYi*sKi
+  102 00000000                 MEND
+  103 00000000         
+  104 00000000         ; Four point complex Fast Fourier Transform  
+  105 00000000                 MACRO
+  106 00000000                 CXADDA4          $s
+  107 00000000         ; (C,D) = (C+D, C-D)
+  108 00000000                 ADD              Cr, Cr, Dr
+  109 00000000                 ADD              Ci, Ci, Di
+  110 00000000                 SUB              Dr, Cr, Dr, LSL#1
+  111 00000000                 SUB              Di, Ci, Di, LSL#1
+  112 00000000         ; (A,B) = (A+(B>>s), A-(B>>s))/4
+  113 00000000                 MOV              Ar, Ar, ASR#2
+  114 00000000                 MOV              Ai, Ai, ASR#2
+  115 00000000                 ADD              Ar, Ar, Br, ASR#(2+$s)
+  116 00000000                 ADD              Ai, Ai, Bi, ASR#(2+$s)
+  117 00000000                 SUB              Br, Ar, Br, ASR#(1+$s)
+  118 00000000                 SUB              Bi, Ai, Bi, ASR#(1+$s)
+  119 00000000         ; (A,C) = (A+(C>>s)/4, A-(C>>s)/4)
+  120 00000000                 ADD              Ar, Ar, Cr, ASR#(2+$s)
+  121 00000000                 ADD              Ai, Ai, Ci, ASR#(2+$s)
+  122 00000000                 SUB              Cr, Ar, Cr, ASR#(1+$s)
+  123 00000000                 SUB              Ci, Ai, Ci, ASR#(1+$s)
+  124 00000000         ; (B,D) = (B-i*(D>>s)/4, B+i*(D>>s)/4)
+  125 00000000                 ADD              Br, Br, Di, ASR#(2+$s)
+  126 00000000                 SUB              Bi, Bi, Dr, ASR#(2+$s)
+  127 00000000                 SUB              Di, Br, Di, ASR#(1+$s)
+  128 00000000                 ADD              Dr, Bi, Dr, ASR#(1+$s)
+  129 00000000                 MEND
+  130 00000000         
+  131 00000000         
+  132 00000000                 MACRO
+  133 00000000                 BUTFLY4ZERO_OPT  $pIN,$offset, $pOUT
+  134 00000000                 LDRSH            Ai, [$pIN, #2]
+  135 00000000                 LDRSH            Ar, [$pIN],#NPT
+  136 00000000                 LDRSH            Ci, [$pIN, #2]
+  137 00000000                 LDRSH            Cr, [$pIN],#NPT
+
+
+
+ARM Macro Assembler    Page 4 
+
+
+  138 00000000                 LDRSH            Bi, [$pIN, #2]
+  139 00000000                 LDRSH            Br, [$pIN],#NPT
+  140 00000000                 LDRSH            Di, [$pIN, #2]
+  141 00000000                 LDRSH            Dr, [$pIN],#NPT
+  142 00000000         ; (C,D) = (C+D, C-D)
+  143 00000000                 ADD              Cr, Cr, Dr
+  144 00000000                 ADD              Ci, Ci, Di
+  145 00000000                 SUB              Dr, Cr, Dr, LSL#1 ; trick
+  146 00000000                 SUB              Di, Ci, Di, LSL#1 ;trick
+  147 00000000         ; (A,B) = (A+B)/4, (A-B)/4
+  148 00000000                 MOV              Ar, Ar, ASR#2
+  149 00000000                 MOV              Ai, Ai, ASR#2
+  150 00000000                 ADD              Ar, Ar, Br, ASR#2
+  151 00000000                 ADD              Ai, Ai, Bi, ASR#2
+  152 00000000                 SUB              Br, Ar, Br, ASR#1
+  153 00000000                 SUB              Bi, Ai, Bi, ASR#1
+  154 00000000         ; (A,C) = (A+C)/4, (A-C)/4
+  155 00000000                 ADD              Ar, Ar, Cr, ASR#2
+  156 00000000                 ADD              Ai, Ai, Ci, ASR#2
+  157 00000000                 SUB              Cr, Ar, Cr, ASR#1
+  158 00000000                 SUB              Ci, Ai, Ci, ASR#1
+  159 00000000         ; (B,D) = (B-i*D)/4, (B+i*D)/4
+  160 00000000                 ADD              Br, Br, Di, ASR#2
+  161 00000000                 SUB              Bi, Bi, Dr, ASR#2
+  162 00000000                 SUB              Di, Br, Di, ASR#1
+  163 00000000                 ADD              Dr, Bi, Dr, ASR#1
+  164 00000000         ;
+  165 00000000                 STRH             Ai, [$pOUT, #2]
+  166 00000000                 STRH             Ar, [$pOUT], #4
+  167 00000000                 STRH             Bi, [$pOUT, #2]
+  168 00000000                 STRH             Br, [$pOUT], #4
+  169 00000000                 STRH             Ci, [$pOUT, #2]
+  170 00000000                 STRH             Cr, [$pOUT], #4
+  171 00000000                 STRH             Dr, [$pOUT, #2] 
+                                                            ; inversion here
+  172 00000000                 STRH             Di, [$pOUT], #4
+  173 00000000                 MEND
+  174 00000000         
+  175 00000000                 MACRO
+  176 00000000                 BUTFLY4_V7       $pssDin,$offset,$pssDout,$qform
+at,$pssK
+  177 00000000                 LDR2Qm           Ar,Ai,$pssDin, $offset 
+                                                            ;-$offset
+  178 00000000                 LDR2Q            Dr,Di,$pssK, #4
+  179 00000000         ; format CXMUL_V7 YYr, YYi, Yr, Yi, Kr, Ki,tmp,tmp2
+  180 00000000                 CXMUL_V7         Dr,Di,Ar,Ai,Dr,Di,tmp,tmp2
+  181 00000000                 LDR2Qm           Ar,Ai,$pssDin,$offset ;-$offset
+                                                            
+  182 00000000                 LDR2Q            Cr,Ci,$pssK,#4
+  183 00000000                 CXMUL_V7         Cr,Ci,Ar,Ai,Cr,Ci,tmp,tmp2
+  184 00000000                 LDR2Qm           Ar,Ai, $pssDin, $offset 
+                                                            ;-$offset
+  185 00000000                 LDR2Q            Br,Bi, $pssK, #4
+  186 00000000                 CXMUL_V7         Br,Bi,Ar,Ai,Br,Bi,tmp,tmp2
+  187 00000000                 LDR2Q            Ar,Ai, $pssDin, #0
+  188 00000000                 CXADDA4          $qformat
+  189 00000000                 STRH             Ai, [$pssDout, #2]
+  190 00000000                 STRH             Ar, [$pssDout]
+  191 00000000                 ADD              $pssDout, $pssDout, $offset
+
+
+
+ARM Macro Assembler    Page 5 
+
+
+  192 00000000                 STRH             Bi, [$pssDout, #2]
+  193 00000000                 STRH             Br, [$pssDout]
+  194 00000000                 ADD              $pssDout, $pssDout, $offset
+  195 00000000                 STRH             Ci, [$pssDout, #2]
+  196 00000000                 STRH             Cr, [$pssDout]
+  197 00000000                 ADD              $pssDout, $pssDout, $offset
+  198 00000000                 STRH             Dr, [$pssDout, #2] 
+                                                            ; inversion here
+  199 00000000                 STRH             Di, [$pssDout], #4
+  200 00000000                 MEND
+  201 00000000         
+  202 00000000         ;-------------------    CODE    ------------------------
+                       --------
+  203 00000000         ;=======================================================
+                       ========================
+  204 00000000         ;*******************************************************
+                       ************************
+  205 00000000         ;* Function Name  : cr4_fft_64_stm32
+  206 00000000         ;* Description    : complex radix-4 64 points FFT
+  207 00000000         ;* Input          : - R0 = pssOUT: Output array .
+  208 00000000         ;*                  - R1 = pssIN: Input array 
+  209 00000000         ;*                  - R2 = Nbin: =64 number of points, t
+                       his optimized FFT function  
+  210 00000000         ;*                    can only convert 64 points.
+  211 00000000         ;* Output         : None 
+  212 00000000         ;* Return         : None
+  213 00000000         ;*******************************************************
+                       ************************
+  214 00000000         cr4_fft_64_stm32
+  215 00000000         
+  216 00000000 E92D 4FF0       STMFD            SP!, {R4-R11, LR}
+  217 00000004         
+  218 00000004 F04F 0C00       MOV              cntrbitrev, #0
+  219 00000008 F04F 0300       MOV              index,#0
+  220 0000000C         
+  221 0000000C         preloop_v7
+  222 0000000C EB01 6E9C       ADD              pssIN2, pssIN, cntrbitrev, LSR#
+26 
+                                                            ;64-pts
+  223 00000010                 BUTFLY4ZERO_OPT  pssIN2,Nbin,pssOUT
+  134 00000010 F9BE 5002       LDRSH            Ai, [pssIN2, #2]
+  135 00000014 F93E 4B40       LDRSH            Ar, [pssIN2],#NPT
+  136 00000018 F9BE 9002       LDRSH            Ci, [pssIN2, #2]
+  137 0000001C F93E 8B40       LDRSH            Cr, [pssIN2],#NPT
+  138 00000020 F9BE 7002       LDRSH            Bi, [pssIN2, #2]
+  139 00000024 F93E 6B40       LDRSH            Br, [pssIN2],#NPT
+  140 00000028 F9BE B002       LDRSH            Di, [pssIN2, #2]
+  141 0000002C F93E AB40       LDRSH            Dr, [pssIN2],#NPT
+  142 00000030         ; (C,D) = (C+D, C-D)
+  143 00000030 44D0            ADD              Cr, Cr, Dr
+  144 00000032 44D9            ADD              Ci, Ci, Di
+  145 00000034 EBA8 0A4A       SUB              Dr, Cr, Dr, LSL#1 ; trick
+  146 00000038 EBA9 0B4B       SUB              Di, Ci, Di, LSL#1 ;trick
+  147 0000003C         ; (A,B) = (A+B)/4, (A-B)/4
+  148 0000003C EA4F 04A4       MOV              Ar, Ar, ASR#2
+  149 00000040 EA4F 05A5       MOV              Ai, Ai, ASR#2
+  150 00000044 EB04 04A6       ADD              Ar, Ar, Br, ASR#2
+  151 00000048 EB05 05A7       ADD              Ai, Ai, Bi, ASR#2
+  152 0000004C EBA4 0666       SUB              Br, Ar, Br, ASR#1
+
+
+
+ARM Macro Assembler    Page 6 
+
+
+  153 00000050 EBA5 0767       SUB              Bi, Ai, Bi, ASR#1
+  154 00000054         ; (A,C) = (A+C)/4, (A-C)/4
+  155 00000054 EB04 04A8       ADD              Ar, Ar, Cr, ASR#2
+  156 00000058 EB05 05A9       ADD              Ai, Ai, Ci, ASR#2
+  157 0000005C EBA4 0868       SUB              Cr, Ar, Cr, ASR#1
+  158 00000060 EBA5 0969       SUB              Ci, Ai, Ci, ASR#1
+  159 00000064         ; (B,D) = (B-i*D)/4, (B+i*D)/4
+  160 00000064 EB06 06AB       ADD              Br, Br, Di, ASR#2
+  161 00000068 EBA7 07AA       SUB              Bi, Bi, Dr, ASR#2
+  162 0000006C EBA6 0B6B       SUB              Di, Br, Di, ASR#1
+  163 00000070 EB07 0A6A       ADD              Dr, Bi, Dr, ASR#1
+  164 00000074         ;
+  165 00000074 8045            STRH             Ai, [pssOUT, #2]
+  166 00000076 F820 4B04       STRH             Ar, [pssOUT], #4
+  167 0000007A 8047            STRH             Bi, [pssOUT, #2]
+  168 0000007C F820 6B04       STRH             Br, [pssOUT], #4
+  169 00000080 F8A0 9002       STRH             Ci, [pssOUT, #2]
+  170 00000084 F820 8B04       STRH             Cr, [pssOUT], #4
+  171 00000088 F8A0 A002       STRH             Dr, [pssOUT, #2] 
+                                                            ; inversion here
+  172 0000008C F820 BB04       STRH             Di, [pssOUT], #4
+  224 00000090                 INC              index
+   57 00000090 F103 0301       ADD              index,index,#1
+  225 00000094 FA93 FCA3       RBIT             cntrbitrev,index
+  226 00000098 2B10            CMP              index,#16   ;64-pts
+  227 0000009A D1B7            BNE              preloop_v7
+  228 0000009C         
+  229 0000009C         
+  230 0000009C EBA0 0182       SUB              pssX, pssOUT, Nbin, LSL#2
+  231 000000A0 F04F 0310       MOV              index, #16
+  232 000000A4 0912            MOVS             butternbr, Nbin, LSR#4 ;dual us
+                                                            e of register 
+  233 000000A6         
+  234 000000A6         ;-------------------------------------------------------
+                       -----------------------
+  235 000000A6         ;   The FFT coefficients table can be stored into Flash 
+                       or RAM. 
+  236 000000A6         ;   The following two lines of code allow selecting the 
+                       method for coefficients 
+  237 000000A6         ;   storage. 
+  238 000000A6         ;   In the case of choosing coefficients in RAM, you hav
+                       e to:
+  239 000000A6         ;   1. Include the file table_fft.h, which is a part of 
+                       the DSP library, 
+  240 000000A6         ;      in your main file.
+  241 000000A6         ;   2. Decomment the line LDR.W pssK, =TableFFT and comm
+                       ent the line 
+  242 000000A6         ;      ADRL    pssK, TableFFT_V7
+  243 000000A6         ;   3. Comment all the TableFFT_V7 data.
+  244 000000A6         ;-------------------------------------------------------
+                       -----------------------
+  245 000000A6 F20F 1036 
+              F100 0000        ADRL             pssK, TableFFT_V7 
+                                                            ; Coeff in Flash 
+  246 000000AE         ;LDR.W pssK, =TableFFT      ; Coeff in RAM 
+  247 000000AE         
+  248 000000AE         ;................................
+  249 000000AE         passloop_v7
+  250 000000AE B406            STMFD            SP!, {pssX,butternbr}
+
+
+
+ARM Macro Assembler    Page 7 
+
+
+  251 000000B0 EB03 0C43       ADD              tmp, index, index, LSL#1
+  252 000000B4 4461            ADD              pssX, pssX, tmp
+  253 000000B6 F5A2 3280       SUB              butternbr, butternbr, #1<<16
+  254 000000BA         ;................
+  255 000000BA         grouploop_v7
+  256 000000BA EB02 3283       ADD              butternbr,butternbr,index,LSL#(
+16-2)
+  257 000000BE         ;.......
+  258 000000BE         butterloop_v7
+  259 000000BE                 BUTFLY4_V7       pssX,index,pssX,14,pssK
+  177 000000BE                 LDR2Qm           Ar,Ai,pssX, index ;-$offset
+   78 000000BE F9B1 5002       LDRSH            Ai, [pssX, #2]
+   79 000000C2 F9B1 4000       LDRSH            Ar, [pssX]
+   80 000000C6 EBA1 0103       SUB              pssX, pssX, index
+  178 000000CA                 LDR2Q            Dr,Di,pssK, #4
+   70 000000CA F9B0 B002       LDRSH            Di, [pssK, #2]
+   71 000000CE F9B0 A000       LDRSH            Dr, [pssK]
+   72 000000D2 F100 0004       ADD              pssK, pssK, #4
+  179 000000D6         ; format CXMUL_V7 YYr, YYi, Yr, Yi, Kr, Ki,tmp,tmp2
+  180 000000D6                 CXMUL_V7         Dr,Di,Ar,Ai,Dr,Di,tmp,tmp2
+   97 000000D6 EBA5 0E04       SUB              tmp2, Ai, Ar ; sYi-sYr
+   98 000000DA FB0E FC0B       MUL              tmp, tmp2, Di ; (sYi-sYr)*sKi
+   99 000000DE EB0A 0E4B       ADD              tmp2, Dr, Di, LSL#1 ; (sKr+sKi)
+                                                            
+  100 000000E2 FB05 CB0A       MLA              Di, Ai, Dr, tmp ; lYYi = sYi*sK
+                                                            r-sYr*sKi
+  101 000000E6 FB04 CA0E       MLA              Dr, Ar, tmp2, tmp ; lYYr = sYr*
+                                                            sKr+sYi*sKi
+  181 000000EA                 LDR2Qm           Ar,Ai,pssX,index ;-$offset
+   78 000000EA F9B1 5002       LDRSH            Ai, [pssX, #2]
+   79 000000EE F9B1 4000       LDRSH            Ar, [pssX]
+   80 000000F2 EBA1 0103       SUB              pssX, pssX, index
+  182 000000F6                 LDR2Q            Cr,Ci,pssK,#4
+   70 000000F6 F9B0 9002       LDRSH            Ci, [pssK, #2]
+   71 000000FA F9B0 8000       LDRSH            Cr, [pssK]
+   72 000000FE F100 0004       ADD              pssK, pssK, #4
+  183 00000102                 CXMUL_V7         Cr,Ci,Ar,Ai,Cr,Ci,tmp,tmp2
+   97 00000102 EBA5 0E04       SUB              tmp2, Ai, Ar ; sYi-sYr
+   98 00000106 FB0E FC09       MUL              tmp, tmp2, Ci ; (sYi-sYr)*sKi
+   99 0000010A EB08 0E49       ADD              tmp2, Cr, Ci, LSL#1 ; (sKr+sKi)
+                                                            
+  100 0000010E FB05 C908       MLA              Ci, Ai, Cr, tmp ; lYYi = sYi*sK
+                                                            r-sYr*sKi
+  101 00000112 FB04 C80E       MLA              Cr, Ar, tmp2, tmp ; lYYr = sYr*
+                                                            sKr+sYi*sKi
+  184 00000116                 LDR2Qm           Ar,Ai, pssX, index ;-$offset
+   78 00000116 F9B1 5002       LDRSH            Ai, [pssX, #2]
+   79 0000011A F9B1 4000       LDRSH            Ar, [pssX]
+   80 0000011E EBA1 0103       SUB              pssX, pssX, index
+  185 00000122                 LDR2Q            Br,Bi, pssK, #4
+   70 00000122 F9B0 7002       LDRSH            Bi, [pssK, #2]
+   71 00000126 F9B0 6000       LDRSH            Br, [pssK]
+   72 0000012A F100 0004       ADD              pssK, pssK, #4
+  186 0000012E                 CXMUL_V7         Br,Bi,Ar,Ai,Br,Bi,tmp,tmp2
+   97 0000012E EBA5 0E04       SUB              tmp2, Ai, Ar ; sYi-sYr
+   98 00000132 FB0E FC07       MUL              tmp, tmp2, Bi ; (sYi-sYr)*sKi
+   99 00000136 EB06 0E47       ADD              tmp2, Br, Bi, LSL#1 ; (sKr+sKi)
+                                                            
+  100 0000013A FB05 C706       MLA              Bi, Ai, Br, tmp ; lYYi = sYi*sK
+
+
+
+ARM Macro Assembler    Page 8 
+
+
+                                                            r-sYr*sKi
+  101 0000013E FB04 C60E       MLA              Br, Ar, tmp2, tmp ; lYYr = sYr*
+                                                            sKr+sYi*sKi
+  187 00000142                 LDR2Q            Ar,Ai, pssX, #0
+   70 00000142 F9B1 5002       LDRSH            Ai, [pssX, #2]
+   71 00000146 F9B1 4000       LDRSH            Ar, [pssX]
+   72 0000014A F101 0100       ADD              pssX, pssX, #0
+  188 0000014E                 CXADDA4          14
+  107 0000014E         ; (C,D) = (C+D, C-D)
+  108 0000014E 44D0            ADD              Cr, Cr, Dr
+  109 00000150 44D9            ADD              Ci, Ci, Di
+  110 00000152 EBA8 0A4A       SUB              Dr, Cr, Dr, LSL#1
+  111 00000156 EBA9 0B4B       SUB              Di, Ci, Di, LSL#1
+  112 0000015A         ; (A,B) = (A+(B>>s), A-(B>>s))/4
+  113 0000015A EA4F 04A4       MOV              Ar, Ar, ASR#2
+  114 0000015E EA4F 05A5       MOV              Ai, Ai, ASR#2
+  115 00000162 EB04 4426       ADD              Ar, Ar, Br, ASR#(2+14)
+  116 00000166 EB05 4527       ADD              Ai, Ai, Bi, ASR#(2+14)
+  117 0000016A EBA4 36E6       SUB              Br, Ar, Br, ASR#(1+14)
+  118 0000016E EBA5 37E7       SUB              Bi, Ai, Bi, ASR#(1+14)
+  119 00000172         ; (A,C) = (A+(C>>s)/4, A-(C>>s)/4)
+  120 00000172 EB04 4428       ADD              Ar, Ar, Cr, ASR#(2+14)
+  121 00000176 EB05 4529       ADD              Ai, Ai, Ci, ASR#(2+14)
+  122 0000017A EBA4 38E8       SUB              Cr, Ar, Cr, ASR#(1+14)
+  123 0000017E EBA5 39E9       SUB              Ci, Ai, Ci, ASR#(1+14)
+  124 00000182         ; (B,D) = (B-i*(D>>s)/4, B+i*(D>>s)/4)
+  125 00000182 EB06 462B       ADD              Br, Br, Di, ASR#(2+14)
+  126 00000186 EBA7 472A       SUB              Bi, Bi, Dr, ASR#(2+14)
+  127 0000018A EBA6 3BEB       SUB              Di, Br, Di, ASR#(1+14)
+  128 0000018E EB07 3AEA       ADD              Dr, Bi, Dr, ASR#(1+14)
+  189 00000192 804D            STRH             Ai, [pssX, #2]
+  190 00000194 800C            STRH             Ar, [pssX]
+  191 00000196 4419            ADD              pssX, pssX, index
+  192 00000198 804F            STRH             Bi, [pssX, #2]
+  193 0000019A 800E            STRH             Br, [pssX]
+  194 0000019C 4419            ADD              pssX, pssX, index
+  195 0000019E F8A1 9002       STRH             Ci, [pssX, #2]
+  196 000001A2 F8A1 8000       STRH             Cr, [pssX]
+  197 000001A6 4419            ADD              pssX, pssX, index
+  198 000001A8 F8A1 A002       STRH             Dr, [pssX, #2] ; inversion here
+                                                            
+  199 000001AC F821 BB04       STRH             Di, [pssX], #4
+  260 000001B0 F5B2 3280       SUBS             butternbr,butternbr, #1<<16
+  261 000001B4 DA83            BGE              butterloop_v7
+  262 000001B6         ;.......
+  263 000001B6 EB03 0C43       ADD              tmp, index, index, LSL#1
+  264 000001BA 4461            ADD              pssX, pssX, tmp
+  265 000001BC                 DEC              butternbr
+   52 000001BC F1A2 0201       SUB              butternbr,butternbr,#1
+  266 000001C0 EA5F 4E02       MOVS             tmp2, butternbr, LSL#16
+  267 000001C4 BF18            IT               NE
+  268 000001C6 EBA0 000C       SUBNE            pssK, pssK, tmp
+  269 000001CA F47F AF76       BNE              grouploop_v7
+  270 000001CE         ;................
+  271 000001CE BC06            LDMFD            sp!, {pssX, butternbr}
+  272 000001D0                 QUAD             index
+   63 000001D0 EA4F 0383       MOV              index,index,LSL#2
+  273 000001D4 0892            MOVS             butternbr, butternbr, LSR#2 ; l
+                                                            oop nbr /= radix 
+
+
+
+ARM Macro Assembler    Page 9 
+
+
+  274 000001D6 F47F AF6A       BNE              passloop_v7
+  275 000001DA         ;................................
+  276 000001DA E8BD 8FF0       LDMFD            SP!, {R4-R11, PC}
+  277 000001DE         
+  278 000001DE         ;=======================================================
+                       ======================
+  279 000001DE         
+  280 000001DE         TableFFT_V7
+  281 000001DE         ;N=16
+  282 000001DE 00 40 00 
+              00 00 40 
+              00 00 00 
+              40 00 00         DCW              0x4000,0x0000, 0x4000,0x0000, 0
+x4000,0x0000
+  283 000001EA 5D DD 21 
+              3B A3 22 
+              7E 18 00 
+              00 41 2D         DCW              0xdd5d,0x3b21, 0x22a3,0x187e, 0
+x0000,0x2d41
+  284 000001F6 7E A5 41 
+              2D 00 00 
+              41 2D 00 
+              C0 00 40         DCW              0xa57e,0x2d41, 0x0000,0x2d41, 0
+xc000,0x4000
+  285 00000202 5D DD 82 
+              E7 5D DD 
+              21 3B 7E 
+              A5 41 2D         DCW              0xdd5d,0xe782, 0xdd5d,0x3b21, 0
+xa57e,0x2d41
+  286 0000020E         ; N=64
+  287 0000020E 00 40 00 
+              00 00 40 
+              00 00 00 
+              40 00 00         DCW              0x4000,0x0000, 0x4000,0x0000, 0
+x4000,0x0000
+  288 0000021A AA 2A 94 
+              12 6B 39 
+              46 06 49 
+              32 7C 0C         DCW              0x2aaa,0x1294, 0x396b,0x0646, 0
+x3249,0x0c7c
+  289 00000226 A8 11 8E 
+              23 49 32 
+              7C 0C A3 
+              22 7E 18         DCW              0x11a8,0x238e, 0x3249,0x0c7c, 0
+x22a3,0x187e
+  290 00000232 21 F7 79 
+              31 AA 2A 
+              94 12 A8 
+              11 8E 23         DCW              0xf721,0x3179, 0x2aaa,0x1294, 0
+x11a8,0x238e
+  291 0000023E 5D DD 21 
+              3B A3 22 
+              7E 18 00 
+              00 41 2D         DCW              0xdd5d,0x3b21, 0x22a3,0x187e, 0
+x0000,0x2d41
+  292 0000024A 95 C6 B1 
+              3F 46 1A 
+              2B 1E 58 
+              EE 37 35         DCW              0xc695,0x3fb1, 0x1a46,0x1e2b, 0
+
+
+
+ARM Macro Assembler    Page 10 
+
+
+xee58,0x3537
+  293 00000256 BE B4 C5 
+              3E A8 11 
+              8E 23 5D 
+              DD 21 3B         DCW              0xb4be,0x3ec5, 0x11a8,0x238e, 0
+xdd5d,0x3b21
+  294 00000262 63 A9 71 
+              38 DF 08 
+              9A 28 B7 
+              CD C5 3E         DCW              0xa963,0x3871, 0x08df,0x289a, 0
+xcdb7,0x3ec5
+  295 0000026E 7E A5 41 
+              2D 00 00 
+              41 2D 00 
+              C0 00 40         DCW              0xa57e,0x2d41, 0x0000,0x2d41, 0
+xc000,0x4000
+  296 0000027A 63 A9 2B 
+              1E 21 F7 
+              79 31 BE 
+              B4 C5 3E         DCW              0xa963,0x1e2b, 0xf721,0x3179, 0
+xb4be,0x3ec5
+  297 00000286 BE B4 7C 
+              0C 58 EE 
+              37 35 61 
+              AC 21 3B         DCW              0xb4be,0x0c7c, 0xee58,0x3537, 0
+xac61,0x3b21
+  298 00000292 95 C6 BA 
+              F9 BA E5 
+              71 38 3B 
+              A7 37 35         DCW              0xc695,0xf9ba, 0xe5ba,0x3871, 0
+xa73b,0x3537
+  299 0000029E 5D DD 82 
+              E7 5D DD 
+              21 3B 7E 
+              A5 41 2D         DCW              0xdd5d,0xe782, 0xdd5d,0x3b21, 0
+xa57e,0x2d41
+  300 000002AA 21 F7 66 
+              D7 56 D5 
+              3F 3D 3B 
+              A7 8E 23         DCW              0xf721,0xd766, 0xd556,0x3d3f, 0
+xa73b,0x238e
+  301 000002B6 A8 11 C9 
+              CA B7 CD 
+              C5 3E 61 
+              AC 7E 18         DCW              0x11a8,0xcac9, 0xcdb7,0x3ec5, 0
+xac61,0x187e
+  302 000002C2 AA 2A C1 
+              C2 95 C6 
+              B1 3F BE 
+              B4 7C 0C         DCW              0x2aaa,0xc2c1, 0xc695,0x3fb1, 0
+xb4be,0x0c7c
+  303 000002CE         
+  304 000002CE                 END
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
+interwork --depend=.\objects\cr4_fft_64_stm32.d -o.\objects\cr4_fft_64_stm32.o 
+-IE:\SoftLib\Keil_Arm_pack\Keil\STM32F4xx_DFP\2.17.1\Drivers\CMSIS\Device\ST\ST
+M32F4xx\Include --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERSION 
+SETA 538" --predefine="STM32F407xx SETA 1" --list=.\listings\cr4_fft_64_stm32.l
+st ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 20 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      None
+Comment: .text unused
+TableFFT_V7 000001DE
+
+Symbol: TableFFT_V7
+   Definitions
+      At line 280 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      At line 245 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+Comment: TableFFT_V7 used once
+butterloop_v7 000000BE
+
+Symbol: butterloop_v7
+   Definitions
+      At line 258 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      At line 261 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+Comment: butterloop_v7 used once
+cr4_fft_64_stm32 00000000
+
+Symbol: cr4_fft_64_stm32
+   Definitions
+      At line 214 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      At line 22 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+Comment: cr4_fft_64_stm32 used once
+grouploop_v7 000000BA
+
+Symbol: grouploop_v7
+   Definitions
+      At line 255 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      At line 269 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+Comment: grouploop_v7 used once
+passloop_v7 000000AE
+
+Symbol: passloop_v7
+   Definitions
+      At line 249 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      At line 274 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+Comment: passloop_v7 used once
+preloop_v7 0000000C
+
+Symbol: preloop_v7
+   Definitions
+      At line 221 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      At line 227 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+Comment: preloop_v7 used once
+7 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Absolute symbols
+
+NPT 00000040
+
+Symbol: NPT
+   Definitions
+      At line 46 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      At line 135 in macro °Li¸ÚæOPT
+      at line 223 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+      At line 137 in macro °Li¸ÚæOPT
+      at line 223 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+      At line 139 in macro °Li¸ÚæOPT
+      at line 223 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+      At line 141 in macro °Li¸ÚæOPT
+      at line 223 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+
+1 symbol
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+External symbols
+
+TableFFT 00000000
+
+Symbol: TableFFT
+   Definitions
+      At line 23 in file ..\..\User\fft\src\asm\arm\cr4_fft_64_stm32.s
+   Uses
+      None
+Comment: TableFFT unused
+1 symbol
+362 symbols in table

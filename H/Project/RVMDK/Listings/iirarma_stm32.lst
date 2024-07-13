@@ -1,0 +1,195 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;/******************** (C) COPYRIGHT 2009  STMicroelectr
+                       onics ********************
+    2 00000000         ;* File Name          : iirarma_stm32.s
+    3 00000000         ;* Author             : MCD Application Team
+    4 00000000         ;* Version            : V2.0.0
+    5 00000000         ;* Date               : 04/27/2009
+    6 00000000         ;* Description        : This source file contains IIR AR
+                       MA filter source code
+    7 00000000         ;*******************************************************
+                       *************************
+    8 00000000         ;* THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS 
+                       AT PROVIDING CUSTOMERS
+    9 00000000         ;* WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN O
+                       RDER FOR THEM TO SAVE TIME.
+   10 00000000         ;* AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIA
+                       BLE FOR ANY DIRECT,
+   11 00000000         ;* INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY
+                        CLAIMS ARISING FROM THE
+   12 00000000         ;* CONTENT OF SUCH SOFTWARE AND/OR THE USE MADE BY CUSTO
+                       MERS OF THE CODING
+   13 00000000         ;* INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR
+                        PRODUCTS.
+   14 00000000         ;*******************************************************
+                       ************************/
+   15 00000000         
+   16 00000000                 THUMB
+   17 00000000                 REQUIRE8
+   18 00000000                 PRESERVE8
+   19 00000000         
+   20 00000000                 AREA             |.text|, CODE, READONLY, ALIGN=
+2
+   21 00000000         
+   22 00000000                 EXPORT           iirarma_stm32
+   23 00000000         
+   24 00000000        0 
+                       y       RN               R0          ; Assigned to outpu
+                                                            t array y[]  
+   25 00000000        1 
+                       x       RN               R1          ; Assigned to input
+                                                             array x[]   
+   26 00000000        2 
+                       h2      RN               R2          ; Assigned to coeff
+                                                            icients h2[] 
+   27 00000000        3 
+                       h1      RN               R3          ; Assigned to coeff
+                                                            icients h1[] 
+   28 00000000         
+   29 00000000        4 
+                       ar_a    RN               R4
+   30 00000000        5 
+                       ar_b    RN               R5
+   31 00000000        6 
+                       ar_c    RN               R6
+   32 00000000        7 
+                       ar_d    RN               R7
+   33 00000000         
+   34 00000000        C 
+                       val_ny  RN               R12         ;/* number of outpu
+                                                            t samples */
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+   35 00000000         
+   36 00000000         ;/******************************************************
+                       *************************
+   37 00000000         ;* Function Name  : iirarma_stm32
+   38 00000000         ;* Description    : IIR order ARMA 16-bit filter
+   39 00000000         ;* Input          : - y: Output array .
+   40 00000000         ;*                  - x: Input array 
+   41 00000000         ;*                  - h2: AutoRegressive part Filter Coe
+                       fficients
+   42 00000000         ;*                  - h1: Moving Average part Filter Coe
+                       fficients
+   43 00000000         ;*                  - ny: the number of output samples
+   44 00000000         ;* Output         : None
+   45 00000000         ;* Return         : None
+   46 00000000         ;*******************************************************
+                       ************************/
+   47 00000000         ; void iirarma_stm32(void *y, void *x,  short *h2, short
+                        *h1, int ny)
+   48 00000000         
+   49 00000000         iirarma_stm32
+   50 00000000 B4F0            STMDB            SP!, {R4-R7}
+   51 00000002 F8DD C010       LDR              R12, [SP, #+16]
+   52 00000006         
+   53 00000006 F1BC 0F01       CMP              val_ny, #+1 ;if val_ny==1
+   54 0000000A D045            BEQ              done_for_now 
+                                                            ;go to done_for_now
+                                                            
+   55 0000000C         
+   56 0000000C         acc_five_data
+   57 0000000C F9B2 4000       LDRSH            ar_a, [h2, #+0]
+   58 00000010 F9B1 5008       LDRSH            ar_b, [x, #+8]
+   59 00000014 F9B2 6002       LDRSH            ar_c, [h2, #+2]
+   60 00000018 F9B1 7006       LDRSH            ar_d, [x, #+6]
+   61 0000001C         
+   62 0000001C F1BC 0C01       SUBS             val_ny, val_ny, #+1 
+                                                            ;decrement val_ny
+   63 00000020 FB07 F606       MUL              ar_c, ar_d, ar_c
+   64 00000024 FB05 6404       MLA              ar_a, ar_b, ar_a, ar_c
+   65 00000028 F9B3 5002       LDRSH            ar_b, [h1, #+2]
+   66 0000002C F9B0 6006       LDRSH            ar_c, [y, #+6]
+   67 00000030 FB06 F505       MUL              ar_b, ar_c,ar_b
+   68 00000034 F9B1 6004       LDRSH            ar_c, [x, #+4]
+   69 00000038 EBA4 0405       SUB              ar_a, ar_a, ar_b
+   70 0000003C F9B2 5004       LDRSH            ar_b, [h2, #+4]
+   71 00000040 FB06 4405       MLA              ar_a, ar_c, ar_b, ar_a
+   72 00000044 F9B3 5004       LDRSH            ar_b, [h1, #+4]
+   73 00000048 F9B0 6004       LDRSH            ar_c, [y, #+4]
+   74 0000004C FB06 F505       MUL              ar_b, ar_c, ar_b
+   75 00000050 F9B1 6002       LDRSH            ar_c, [x, #+2]
+   76 00000054 EBA4 0405       SUB              ar_a, ar_a, ar_b
+   77 00000058 F9B2 5006       LDRSH            ar_b, [h2, #+6]
+   78 0000005C FB06 4405       MLA              ar_a, ar_c, ar_b, ar_a
+   79 00000060 F9B3 5006       LDRSH            ar_b, [h1, #+6]
+   80 00000064 F9B0 6002       LDRSH            ar_c, [y, #+2]
+   81 00000068 FB06 F505       MUL              ar_b, ar_c, ar_b
+   82 0000006C F931 6B02       LDRSH            ar_c, [x], #+2
+   83 00000070 EBA4 0405       SUB              ar_a, ar_a, ar_b
+   84 00000074 F9B2 5008       LDRSH            ar_b, [h2, #+8]
+   85 00000078 FB06 4405       MLA              ar_a, ar_c, ar_b, ar_a
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+   86 0000007C F9B3 5008       LDRSH            ar_b, [h1, #+8]
+   87 00000080 F9B0 6000       LDRSH            ar_c, [y, #+0]
+   88 00000084 FB06 F505       MUL              ar_b, ar_c, ar_b
+   89 00000088 EBA4 0405       SUB              ar_a, ar_a, ar_b
+   90 0000008C EA4F 34E4       ASR              ar_a, ar_a, #+15
+   91 00000090 8104            STRH             ar_a, [y, #+8]
+   92 00000092 F100 0002       ADD              y, y, #+2
+   93 00000096 D1B9            BNE              acc_five_data
+   94 00000098         
+   95 00000098         done_for_now
+   96 00000098 BCF0            LDMIA            SP!, {R4-R7}
+   97 0000009A 4770            BX               LR          ; return
+   98 0000009C                 END
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
+interwork --depend=.\objects\iirarma_stm32.d -o.\objects\iirarma_stm32.o -IE:\S
+oftLib\Keil_Arm_pack\Keil\STM32F4xx_DFP\2.17.1\Drivers\CMSIS\Device\ST\STM32F4x
+x\Include --predefine="__MICROLIB SETA 1" --predefine="__UVISION_VERSION SETA 5
+38" --predefine="STM32F407xx SETA 1" --list=.\listings\iirarma_stm32.lst ..\..\
+User\fft\src\asm\arm\iirarma_stm32.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 20 in file ..\..\User\fft\src\asm\arm\iirarma_stm32.s
+   Uses
+      None
+Comment: .text unused
+acc_five_data 0000000C
+
+Symbol: acc_five_data
+   Definitions
+      At line 56 in file ..\..\User\fft\src\asm\arm\iirarma_stm32.s
+   Uses
+      At line 93 in file ..\..\User\fft\src\asm\arm\iirarma_stm32.s
+Comment: acc_five_data used once
+done_for_now 00000098
+
+Symbol: done_for_now
+   Definitions
+      At line 95 in file ..\..\User\fft\src\asm\arm\iirarma_stm32.s
+   Uses
+      At line 54 in file ..\..\User\fft\src\asm\arm\iirarma_stm32.s
+Comment: done_for_now used once
+iirarma_stm32 00000000
+
+Symbol: iirarma_stm32
+   Definitions
+      At line 49 in file ..\..\User\fft\src\asm\arm\iirarma_stm32.s
+   Uses
+      At line 22 in file ..\..\User\fft\src\asm\arm\iirarma_stm32.s
+Comment: iirarma_stm32 used once
+4 symbols
+347 symbols in table
