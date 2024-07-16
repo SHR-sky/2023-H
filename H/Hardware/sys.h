@@ -12,9 +12,6 @@
 //#include "table_fft.h"
 #include "arm_math.h" // 包含DSP库
 
-
-
-
 // //0,不支持ucos
 // //1,支持ucos
 // #define SYSTEM_SUPPORT_UCOS		1		//定义系统文件夹是否支持UCOS																	    

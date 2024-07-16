@@ -181,31 +181,11 @@ void USART2_IRQHandler(void)
 		}
 		else 
 		{
-			//NVIC_SystemReset();
 			mode_flag = 1;
 			change_phi = Res;
-			/*
-			if(Res == 0x2)
-			{
-				change_phi = 3;
-			}
-			else if(Res == 0x3)
-			{
-				change_phi = -3;
-			}
-			else if(Res == 0x4)
-			{
-				change_phi = 1;
-			}
-			else
-			{
-				change_phi = -1;
-			}
-			*/
 		}
 		
 		USART_ClearITPendingBit(USART2, USART_IT_RXNE);
-		// Write you code
 	}
 }
 
@@ -216,4 +196,4 @@ void Serial_End(void)
 	Serial_SendByte(0xff);
 }
 
-// 中断发送串口数据
+

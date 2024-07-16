@@ -47,3 +47,4 @@ void Timer_Init(void)
 
 	TIM_Cmd(TIM2, ENABLE);
 }
+
